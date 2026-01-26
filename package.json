@@ -1,0 +1,41 @@
+{
+  "name": "boros-arbitrage",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Cross-exchange funding rate arbitrage using Boros Yield Units",
+  "main": "dist/index.js",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "scan": "tsx src/arbitrage-scanner.ts",
+    "monitor": "tsx src/arbitrage-monitor.ts"
+  },
+  "keywords": [
+    "boros",
+    "arbitrage",
+    "funding-rate",
+    "yield-units",
+    "defi",
+    "hyperliquid",
+    "binance"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@nktkas/hyperliquid": "^0.30.3",
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.7",
+    "viem": "^2.45.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.17.0",
+    "typescript": "^5.7.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
