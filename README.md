@@ -142,7 +142,7 @@ Boros/
 ## Resources
 
 - [Cross-Exchange Funding Rate Arbitrage Strategy](https://medium.com/boros-fi/cross-exchange-funding-rate-arbitrage-a-fixed-yield-strategy-through-boros-c9e828b61215)
-- [Boros App](https://app.boros.finance)
+- [Boros App](https://boros.pendle.finance/)
 
 ## License
 
