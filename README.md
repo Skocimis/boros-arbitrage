@@ -84,7 +84,7 @@ npx tsx src/market-inspector.ts <market_id> ...
 
 ### Hyperliquid Scripts
 
-Manual trading utilities for the perp leg execution.
+Manual trading utilities for the Hyperliquid perp leg execution.
 
 ```bash
 # Set leverage
@@ -93,6 +93,21 @@ npx tsx src/scripts/setHyperliquidLeverage.ts ETH 2
 # Open short position
 npx tsx src/scripts/hyperliquidShort.ts ETH 0.01
 ```
+
+### OKX Scripts
+
+Manual trading utilities for the OKX perp leg execution.
+
+```bash
+# Open long position (size in base asset, e.g., 0.1 ETH)
+npx tsx src/scripts/okxLong.ts ETH 0.1
+```
+
+- Size is in base asset (e.g., ETH), automatically converted to contracts
+- Fetches instrument info and validates against minimum size
+- Rounds to valid contract lot size
+- Places market order with cross-margin mode
+- Shows notional value before execution
 
 ## Key Concepts
 
@@ -121,6 +136,9 @@ PRIVATE_KEY=your_hyperliquid_private_key
 HYPERLIQUID_SUBACCOUNT=your_hyperliquid_subaccount_address
 BINANCE_API_KEY=your_binance_api_key
 BINANCE_API_SECRET=your_binance_api_secret
+OKX_API_KEY=your_okx_api_key
+OKX_SECRET_KEY=your_okx_secret_key
+OKX_API_PASSPHRASE=your_okx_api_passphrase
 ```
 
 ## Project Structure
@@ -133,7 +151,7 @@ Boros/
 │   ├── market-inspector.ts    # Market detail CLI
 │   ├── index.ts               # Strategy calculation demo
 │   ├── lib/                   # DEX client implementations
-│   └── scripts/               # Hyperliquid trading scripts
+│   └── scripts/               # Exchange trading scripts (Hyperliquid, OKX)
 ├── lib/functions/             # Boros API helpers
 ├── docs/overview.md           # Detailed architecture docs
 └── snapshots/                 # Saved opportunity snapshots

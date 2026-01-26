@@ -102,6 +102,28 @@ npx tsx src/scripts/hyperliquidShort.ts ETH 0.01
 - Formats price/size per Hyperliquid tick rules (5 sig figs, decimal limits)
 - Executes on subaccount
 
+### OKX Scripts (`src/scripts/`)
+
+CLI utilities for manual OKX perpetual swap operations.
+
+#### okxLong.ts
+
+Opens a long position on OKX perpetual swaps with market execution.
+
+```bash
+npx tsx src/scripts/okxLong.ts <TICKER> <SIZE>
+npx tsx src/scripts/okxLong.ts ETH 0.1
+```
+
+- Size is in base asset (e.g., 0.1 = 0.1 ETH), automatically converted to contracts
+- Fetches instrument info (lot size, min size, contract value)
+- Validates size against minimum and rounds to valid lot size
+- Places market buy order with cross-margin mode
+- Shows notional value in USD before execution
+- Uses OKX REST API with HMAC-SHA256 authentication
+
+**Note:** For ETH-USDT-SWAP, 1 contract = 0.01 ETH, so 0.1 ETH = 10 contracts.
+
 ---
 
 ## Existing Implementations
@@ -159,7 +181,7 @@ Abstract client implementations for exchange interactions.
 | `BinanceClient.ts` | Binance Futures (getBalance, getFunding) | Partial (order not implemented) |
 | `HyperliquidClient.ts` | Hyperliquid (getFunding only) | Skeleton |
 
-**Note:** For full Hyperliquid trading, use scripts in `src/scripts/` which use `@nktkas/hyperliquid` SDK.
+**Note:** For full Hyperliquid trading, use scripts in `src/scripts/` which use `@nktkas/hyperliquid` SDK. For OKX trading, use `okxLong.ts` which uses the OKX REST API directly.
 
 ### Boros API Library (`lib/functions/`)
 
@@ -195,6 +217,9 @@ npm run dev
 | `HYPERLIQUID_SUBACCOUNT` | Yes | Hyperliquid subaccount address for trading |
 | `BINANCE_API_KEY` | Yes | Binance API key |
 | `BINANCE_API_SECRET` | Yes | Binance API secret |
+| `OKX_API_KEY` | Yes | OKX API key |
+| `OKX_SECRET_KEY` | Yes | OKX API secret key |
+| `OKX_API_PASSPHRASE` | Yes | OKX API passphrase |
 
 ### Subaccount Architecture
 
@@ -239,5 +264,5 @@ Subaccount (HYPERLIQUID_SUBACCOUNT)
 |---------|---------|
 | `@nktkas/hyperliquid` | Hyperliquid SDK |
 | `viem` | Ethereum wallet/signing |
-| `axios` | HTTP client for Binance API |
+| `axios` | HTTP client for Binance and OKX APIs |
 | `dotenv` | Environment configuration |
