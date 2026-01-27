@@ -1,11 +1,31 @@
 /**
  * @file borosTrade.ts
- * @description CLI script to open a position on Boros Yield Units (YU) markets.
+ * @description Opens positions on Boros Yield Units (YU) markets. Can be used as CLI or imported as module.
  *
- * @usage
+ * @usage CLI
  *   npx tsx src/scripts/borosTrade.ts <SIDE> <MARKET_ID> <SIZE>
  *   Example: npx tsx src/scripts/borosTrade.ts long 40 100
  *   Example: npx tsx src/scripts/borosTrade.ts short 41 50
+ *
+ * @usage Module
+ *   import { executeBoros, createBorosAgent, BorosOrderResult } from "./borosTrade.js";
+ *
+ *   // Single order (creates agent automatically)
+ *   const result = await executeBoros("long", 40, 100);
+ *
+ *   // Multiple orders with shared agent (more efficient)
+ *   const agent = await createBorosAgent();
+ *   const [longResult, shortResult] = await Promise.all([
+ *     executeBoros("long", 40, 100, { agent }),
+ *     executeBoros("short", 41, 100, { agent }),
+ *   ]);
+ *
+ * @exports
+ *   - executeBoros(side, marketId, size, options?): Opens a YU position, returns BorosOrderResult
+ *   - createBorosAgent(): Creates and approves a Boros agent for reuse across multiple orders
+ *   - BorosOrderResult: Interface for order result with success, txHash, filledSize, etc.
+ *   - BorosAgent: Type for the agent object
+ *   - ExecuteBorosOptions: Interface for optional parameters (agent)
  *
  * @dependencies
  *   - @pendle/sdk-boros: Official Boros SDK for trading
@@ -19,13 +39,11 @@
  *   - BOROS_RPC_URL: Ethereum RPC URL, defaults to Arbitrum public RPC (optional)
  *
  * @behavior
- *   1. Parses CLI arguments (side, market ID, size in collateral/YU tokens)
- *   2. Validates required environment variables
- *   3. Fetches market data to get tickStep and current rates
- *   4. Fetches order book to determine optimal limit tick with slippage
- *   5. Creates and approves agent for transaction signing (one-time on-chain tx)
- *   6. Places IOC (Immediate-or-Cancel) order for market-like execution
- *   7. Reports order status (success or error)
+ *   1. Fetches market data to get tickStep and current rates
+ *   2. Fetches order book to determine optimal limit tick with slippage
+ *   3. Creates/uses agent for transaction signing
+ *   4. Places IOC (Immediate-or-Cancel) order for market-like execution
+ *   5. Returns result object with order status
  *
  * @notes
  *   - Size is in YU tokens (same as collateral notional, e.g., 100 = $100 notional)
@@ -34,8 +52,10 @@
  *   - Uses IOC time-in-force for immediate execution
  *   - Slippage tolerance: 0.6% absolute (rate + 0.6% for long, rate - 0.6% for short)
  *   - Requires collateral deposited on Boros (cross-margin)
- *   - Agent approval requires ETH on Arbitrum for gas (one-time)
+ *   - Agent approval requires ETH on Arbitrum for gas (one-time per agent)
+ *   - Use createBorosAgent() to share one agent across multiple orders
  *
+ * @see openPosition.ts for 4-legged strategy execution
  * @see hyperliquidShort.ts for Hyperliquid perp leg
  * @see okxLong.ts for OKX perp leg
  */
@@ -69,6 +89,74 @@ const SLIPPAGE_PCT = 0.006;
 
 /** Boros API base URL */
 const BOROS_API_URL = "https://api.boros.finance";
+
+/** Result type for Boros order */
+export interface BorosOrderResult {
+  success: boolean;
+  marketId: number;
+  side: "long" | "short";
+  size: number;
+  limitApr?: number;
+  filledSize?: number;
+  txHash?: string;
+  error?: string;
+  rawResult?: unknown;
+}
+
+/** Type for Boros agent */
+export type BorosAgent = Awaited<ReturnType<typeof Agent.create>>["agent"];
+
+/** Options for executeBoros */
+export interface ExecuteBorosOptions {
+  /** Pre-created agent to use (avoids creating a new one) */
+  agent?: BorosAgent;
+}
+
+/**
+ * Creates and approves a Boros agent for trading
+ * @returns The created agent that can be passed to executeBoros
+ */
+export async function createBorosAgent(): Promise<BorosAgent> {
+  const privateKey = process.env.PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("PRIVATE_KEY not found in environment variables");
+  }
+
+  const accountId = parseInt(process.env.BOROS_ACCOUNT_ID || "0", 10);
+  const rpcUrl = process.env.BOROS_RPC_URL || DEFAULT_RPC_URL;
+
+  // Set Boros environment to production
+  setEnv("production");
+
+  // Create wallet client
+  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  const walletClient = createWalletClient({
+    transport: http(rpcUrl),
+    chain: arbitrum,
+    account,
+  });
+
+  // Create Exchange instance for approval
+  const exchange = new Exchange(walletClient, account.address, accountId, [rpcUrl]);
+
+  // Create agent
+  console.log("Creating Boros agent...");
+  const { agent } = await Agent.create(walletClient);
+  setInternalAgent(agent);
+
+  // Approve agent on-chain
+  try {
+    await exchange.approveAgent(agent);
+    console.log("Agent approved");
+  } catch (approvalError) {
+    const msg = approvalError instanceof Error ? approvalError.message : String(approvalError);
+    if (!msg.includes("already")) {
+      console.log("Agent note:", msg);
+    }
+  }
+
+  return agent;
+}
 
 /**
  * Fetches market data from Boros API
@@ -149,6 +237,187 @@ function calculateExecutionRate(
   }
 }
 
+/**
+ * Executes a Boros trade (long or short YU position)
+ * @param side - Trade side ("long" or "short")
+ * @param marketId - Boros market ID
+ * @param sizeInput - Position size in YU tokens (collateral notional)
+ * @param options - Optional parameters (e.g., pre-created agent)
+ * @returns Order result
+ */
+export async function executeBoros(
+  side: "long" | "short",
+  marketId: number,
+  sizeInput: number,
+  options?: ExecuteBorosOptions
+): Promise<BorosOrderResult> {
+  // Check environment variables
+  const privateKey = process.env.PRIVATE_KEY;
+  if (!privateKey) {
+    throw new Error("PRIVATE_KEY not found in environment variables");
+  }
+
+  const accountId = parseInt(process.env.BOROS_ACCOUNT_ID || "0", 10);
+  const rpcUrl = process.env.BOROS_RPC_URL || DEFAULT_RPC_URL;
+
+  // Set Boros environment to production
+  setEnv("production");
+
+  // Fetch market data
+  console.log(`Fetching Boros market ${marketId}...`);
+  const market = await getMarket(marketId);
+  if (!market) {
+    throw new Error(`Market ${marketId} not found`);
+  }
+
+  if (market.state !== "Normal") {
+    throw new Error(`Market ${marketId} is not in Normal state (current: ${market.state})`);
+  }
+
+  // Fetch order book
+  const orderBook = await getOrderBook(marketId);
+  if (!orderBook) {
+    throw new Error(`Order book not found for market ${marketId}`);
+  }
+
+  // Calculate execution rate with slippage
+  const midApr = market.data.midApr || market.data.markApr;
+  const executionRate = calculateExecutionRate(orderBook, side, midApr);
+
+  // Convert rate to tick
+  const tickStep = BigInt(market.imData.tickStep);
+  const roundDown = side === "short";
+  const rateFixedX18 = FixedX18.fromNumber(executionRate);
+  const limitTick = Number(
+    estimateTickForRate(rateFixedX18, tickStep, roundDown)
+  );
+
+  // Convert size to bigint (18 decimals)
+  const size = parseUnits(sizeInput.toString(), 18);
+
+  // Create wallet client
+  const account = privateKeyToAccount(privateKey as `0x${string}`);
+  const walletClient = createWalletClient({
+    transport: http(rpcUrl),
+    chain: arbitrum,
+    account,
+  });
+
+  // Create Exchange instance
+  const exchange = new Exchange(walletClient, account.address, accountId, [rpcUrl]);
+
+  // Use provided agent or create a new one
+  let agent: Awaited<ReturnType<typeof Agent.create>>["agent"];
+  if (options?.agent) {
+    agent = options.agent;
+    setInternalAgent(agent);
+  } else {
+    console.log("Setting up Boros agent...");
+    const created = await Agent.create(walletClient);
+    agent = created.agent;
+    setInternalAgent(agent);
+
+    // Approve agent on-chain (required once per agent)
+    try {
+      await exchange.approveAgent(agent);
+      console.log("Agent approved");
+    } catch (approvalError) {
+      const msg = approvalError instanceof Error ? approvalError.message : String(approvalError);
+      if (!msg.includes("already")) {
+        console.log("Agent note:", msg);
+      }
+    }
+  }
+
+  // Pack market account for cross-margin trading
+  const tokenId = market.tokenId;
+  const marketAcc = MarketAccLib.pack(
+    account.address,
+    accountId,
+    tokenId,
+    CROSS_MARKET_ID
+  );
+
+  // Calculate expiry date
+  const expiryDate = new Date(market.imData.maturity * 1000);
+  const expiryStr = expiryDate.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "2-digit",
+  }).replace(/ /g, "-");
+
+  // Display order details
+  console.log("");
+  console.log(`Opening ${side.toUpperCase()} YU position on Boros:`);
+  console.log(`  Market: ${market.metadata.name} (${market.metadata.platformName})`);
+  console.log(`  Market ID: ${marketId}`);
+  console.log(`  Expiry: ${expiryStr}`);
+  console.log(`  Size: ${sizeInput} YU tokens`);
+  console.log(`  Mid APR: ${(midApr * 100).toFixed(2)}%`);
+  console.log(`  Limit APR: ${(executionRate * 100).toFixed(2)}% (${side === "long" ? "+" : "-"}${(SLIPPAGE_PCT * 100).toFixed(1)}% slippage)`);
+  console.log(`  Limit Tick: ${limitTick}`);
+  console.log(`  Order Type: IOC (Immediate-or-Cancel)`);
+  console.log("");
+
+  // Place order
+  console.log("Placing Boros order...");
+  try {
+    const sideEnum = side === "long" ? Side.LONG : Side.SHORT;
+    const result = await exchange.placeOrder({
+      marketAcc,
+      marketId,
+      side: sideEnum,
+      size,
+      limitTick,
+      tif: TimeInForce.IMMEDIATE_OR_CANCEL,
+    });
+
+    if (result.executeResponse?.status === "success") {
+      console.log("\nBoros: Order executed successfully!");
+      console.log(`  Tx Hash: ${result.executeResponse.txHash}`);
+
+      // Extract swap details if available
+      const swapEvent = result.result?.events?.find((e: { eventName: string }) => e.eventName === "Swap");
+      let filledSize: number | undefined;
+      if (swapEvent?.args) {
+        const sizeOut = BigInt(swapEvent.args.sizeOut);
+        filledSize = Math.abs(Number(sizeOut) / 1e18);
+        console.log(`  Filled Size: ${filledSize.toFixed(4)} YU`);
+      }
+
+      return {
+        success: true,
+        marketId,
+        side,
+        size: sizeInput,
+        limitApr: executionRate,
+        filledSize,
+        txHash: result.executeResponse.txHash,
+        rawResult: result,
+      };
+    } else {
+      return {
+        success: false,
+        marketId,
+        side,
+        size: sizeInput,
+        error: "Order did not execute successfully",
+        rawResult: result,
+      };
+    }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    console.error("\nBoros: Order failed:", errorMessage);
+    return {
+      success: false,
+      marketId,
+      side,
+      size: sizeInput,
+      error: errorMessage,
+    };
+  }
+}
+
 async function main() {
   const [sideArg, marketIdStr, sizeStr] = process.argv.slice(2);
 
@@ -170,7 +439,6 @@ async function main() {
     console.error("Side must be 'long' or 'short'");
     process.exit(1);
   }
-  const side = sideLower === "long" ? Side.LONG : Side.SHORT;
 
   // Validate market ID
   const marketId = parseInt(marketIdStr, 10);
@@ -186,164 +454,24 @@ async function main() {
     process.exit(1);
   }
 
-  // Check environment variables
-  const privateKey = process.env.PRIVATE_KEY;
-  if (!privateKey) {
-    console.error("PRIVATE_KEY not found in environment variables");
-    process.exit(1);
-  }
+  const result = await executeBoros(sideLower as "long" | "short", marketId, sizeInput);
 
-  const accountId = parseInt(process.env.BOROS_ACCOUNT_ID || "0", 10);
-  const rpcUrl = process.env.BOROS_RPC_URL || DEFAULT_RPC_URL;
+  // Custom JSON stringify that handles BigInt
+  const jsonResult = JSON.stringify(result, (_, value) =>
+    typeof value === 'bigint' ? value.toString() : value
+  , 2);
+  console.log("\nResult:", jsonResult);
 
-  // Set Boros environment to production
-  setEnv("production");
-
-  // Fetch market data
-  console.log(`Fetching market ${marketId}...`);
-  const market = await getMarket(marketId);
-  if (!market) {
-    console.error(`Market ${marketId} not found`);
-    process.exit(1);
-  }
-
-  if (market.state !== "Normal") {
-    console.error(`Market ${marketId} is not in Normal state (current: ${market.state})`);
-    console.error("Cannot trade on markets that are CloseOnly, Paused, or Settled");
-    process.exit(1);
-  }
-
-  // Fetch order book
-  const orderBook = await getOrderBook(marketId);
-  if (!orderBook) {
-    console.error(`Order book not found for market ${marketId}`);
-    process.exit(1);
-  }
-
-  // Calculate execution rate with slippage
-  const midApr = market.data.midApr || market.data.markApr;
-  const executionRate = calculateExecutionRate(orderBook, sideLower as "long" | "short", midApr);
-
-  // Convert rate to tick
-  const tickStep = BigInt(market.imData.tickStep);
-  // For long orders: round UP (accept higher rate)
-  // For short orders: round DOWN (accept lower rate)
-  const roundDown = sideLower === "short";
-  const rateFixedX18 = FixedX18.fromNumber(executionRate);
-  const limitTick = Number(
-    estimateTickForRate(rateFixedX18, tickStep, roundDown)
-  );
-
-  // Convert size to bigint (18 decimals)
-  const size = parseUnits(sizeInput.toString(), 18);
-
-  // Create wallet client
-  const account = privateKeyToAccount(privateKey as `0x${string}`);
-  const walletClient = createWalletClient({
-    transport: http(rpcUrl),
-    chain: arbitrum,
-    account,
-  });
-
-  // Create Exchange instance
-  const exchange = new Exchange(walletClient, account.address, accountId, [rpcUrl]);
-
-  // Create and set agent for transaction signing
-  console.log("Setting up agent...");
-  const { agent } = await Agent.create(walletClient);
-  setInternalAgent(agent);
-
-  // Approve agent on-chain (required once per agent)
-  try {
-    await exchange.approveAgent(agent);
-    console.log("Agent approved");
-  } catch (approvalError) {
-    // Agent might already be approved - ignore if already approved
-    const msg = approvalError instanceof Error ? approvalError.message : String(approvalError);
-    if (!msg.includes("already")) {
-      console.log("Agent note:", msg);
-    }
-  }
-
-  // Pack market account for cross-margin trading
-  // tokenId comes from the market
-  // For cross-margin, use CROSS_MARKET_ID (0xffffff) as the marketId in the pack
-  const tokenId = market.tokenId;
-  const marketAcc = MarketAccLib.pack(
-    account.address,
-    accountId,
-    tokenId,
-    CROSS_MARKET_ID
-  );
-
-  // Calculate expiry date
-  const expiryDate = new Date(market.imData.maturity * 1000);
-  const expiryStr = expiryDate.toLocaleDateString("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "2-digit",
-  }).replace(/ /g, "-");
-
-  // Display order details
-  console.log("");
-  console.log(`Opening ${sideLower.toUpperCase()} YU position on Boros:`);
-  console.log(`  Market: ${market.metadata.name} (${market.metadata.platformName})`);
-  console.log(`  Market ID: ${marketId}`);
-  console.log(`  Expiry: ${expiryStr}`);
-  console.log(`  Size: ${sizeInput} YU tokens`);
-  console.log(`  Mid APR: ${(midApr * 100).toFixed(2)}%`);
-  console.log(`  Limit APR: ${(executionRate * 100).toFixed(2)}% (${sideLower === "long" ? "+" : "-"}${(SLIPPAGE_PCT * 100).toFixed(1)}% slippage)`);
-  console.log(`  Limit Tick: ${limitTick}`);
-  console.log(`  Order Type: IOC (Immediate-or-Cancel)`);
-  console.log("");
-
-  // Place order
-  console.log("Placing order...");
-  try {
-    const result = await exchange.placeOrder({
-      marketAcc,
-      marketId,
-      side,
-      size,
-      limitTick,
-      tif: TimeInForce.IMMEDIATE_OR_CANCEL,
-    });
-
-    // Custom JSON stringify that handles BigInt
-    const jsonResult = JSON.stringify(result, (_, value) =>
-      typeof value === 'bigint' ? value.toString() : value
-    , 2);
-
-    if (result.executeResponse?.status === "success") {
-      console.log("\nOrder executed successfully!");
-      console.log(`  Tx Hash: ${result.executeResponse.txHash}`);
-
-      // Extract swap details if available
-      const swapEvent = result.result?.events?.find((e: { eventName: string }) => e.eventName === "Swap");
-      if (swapEvent?.args) {
-        const sizeOut = BigInt(swapEvent.args.sizeOut);
-        const sizeFormatted = Number(sizeOut) / 1e18;
-        console.log(`  Filled Size: ${Math.abs(sizeFormatted).toFixed(4)} YU`);
-      }
-    } else {
-      console.log("Result:", jsonResult);
-    }
-  } catch (error: unknown) {
-    console.error("\nOrder failed:");
-    if (error instanceof Error) {
-      console.error("  Message:", error.message);
-      const axiosError = error as { response?: { data?: unknown } };
-      if (axiosError.response?.data) {
-        console.error("  Details:", JSON.stringify(axiosError.response.data, null, 2));
-      }
-    } else {
-      console.error("  Error:", error);
-    }
+  if (!result.success) {
     process.exit(1);
   }
 }
 
-main().catch((err) => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+// Only run main() when executed directly, not when imported
+import { fileURLToPath } from "url";
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error("Error:", err.message);
+    process.exit(1);
+  });
+}

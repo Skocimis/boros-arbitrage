@@ -1,10 +1,18 @@
 /**
  * @file okxLong.ts
- * @description CLI script to open a long position on OKX perpetual swaps.
+ * @description Opens long positions on OKX perpetual swaps. Can be used as CLI or imported as module.
  *
- * @usage
+ * @usage CLI
  *   npx tsx src/scripts/okxLong.ts <TICKER> <SIZE>
  *   Example: npx tsx src/scripts/okxLong.ts ETH 0.1
+ *
+ * @usage Module
+ *   import { openOkxLong, OkxOrderResult } from "./okxLong.js";
+ *   const result = await openOkxLong("ETH", 0.1);
+ *
+ * @exports
+ *   - openOkxLong(ticker, size): Opens a long position, returns OkxOrderResult
+ *   - OkxOrderResult: Interface for order result with success, orderId, contracts, etc.
  *
  * @dependencies
  *   - axios: HTTP client for OKX API requests
@@ -17,13 +25,11 @@
  *   - OKX_API_PASSPHRASE: OKX API passphrase (required)
  *
  * @behavior
- *   1. Parses CLI arguments (ticker symbol and position size in base asset, e.g., ETH)
- *   2. Validates required environment variables
- *   3. Builds instrument ID in OKX format: {TICKER}-USDT-SWAP
- *   4. Fetches instrument info to get contract value and convert size to contracts
- *   5. Fetches current market price from OKX
- *   6. Places market buy order for immediate execution
- *   7. Reports order status (success or error)
+ *   1. Builds instrument ID in OKX format: {TICKER}-USDT-SWAP
+ *   2. Fetches instrument info to get contract value and convert size to contracts
+ *   3. Fetches current market price from OKX
+ *   4. Places market buy order for immediate execution
+ *   5. Returns result object with order status
  *
  * @notes
  *   - Uses market order type for immediate execution
@@ -31,8 +37,8 @@
  *   - Size is in base asset (e.g., ETH), automatically converted to contracts
  *   - OKX API requires HMAC-SHA256 signature with Base64 encoding
  *
+ * @see openPosition.ts for 4-legged strategy execution
  * @see hyperliquidShort.ts for the Hyperliquid equivalent
- * @see setOkxLeverage.ts for configuring leverage before trading (not yet implemented)
  */
 
 import axios from "axios";
@@ -168,35 +174,40 @@ async function placeOrder(
   return data;
 }
 
-async function main() {
-  const [ticker, sizeStr] = process.argv.slice(2);
+/** Result type for OKX order */
+export interface OkxOrderResult {
+  success: boolean;
+  ticker: string;
+  side: "long";
+  orderId?: string;
+  contracts?: number;
+  assetSize?: number;
+  price?: number;
+  notionalValue?: number;
+  error?: string;
+  rawResult?: unknown;
+}
 
-  if (!ticker || !sizeStr) {
-    console.error("Usage: npx tsx src/scripts/okxLong.ts <TICKER> <SIZE>");
-    console.error("Example: npx tsx src/scripts/okxLong.ts ETH 0.1");
-    console.error("Note: SIZE is in base asset (e.g., 0.1 = 0.1 ETH)");
-    process.exit(1);
-  }
-
-  const assetSize = parseFloat(sizeStr);
-  if (isNaN(assetSize) || assetSize <= 0) {
-    console.error("Size must be a positive number");
-    process.exit(1);
-  }
-
+/**
+ * Opens a long position on OKX perpetual swaps
+ * @param ticker - Asset ticker (e.g., "ETH")
+ * @param size - Position size in base asset
+ * @returns Order result
+ */
+export async function openOkxLong(
+  ticker: string,
+  size: number
+): Promise<OkxOrderResult> {
   if (!process.env.OKX_API_KEY) {
-    console.error("OKX_API_KEY not found in environment variables");
-    process.exit(1);
+    throw new Error("OKX_API_KEY not found in environment variables");
   }
 
   if (!process.env.OKX_SECRET_KEY) {
-    console.error("OKX_SECRET_KEY not found in environment variables");
-    process.exit(1);
+    throw new Error("OKX_SECRET_KEY not found in environment variables");
   }
 
   if (!process.env.OKX_API_PASSPHRASE) {
-    console.error("OKX_API_PASSPHRASE not found in environment variables");
-    process.exit(1);
+    throw new Error("OKX_API_PASSPHRASE not found in environment variables");
   }
 
   // Build OKX instrument ID: TICKER-USDT-SWAP
@@ -205,13 +216,11 @@ async function main() {
   // Get instrument info (lot size, min size, contract value)
   const instData = await getInstrument(instId);
   if (instData.code !== "0") {
-    console.error(`Failed to get instrument info: ${instData.msg}`);
-    process.exit(1);
+    throw new Error(`Failed to get instrument info: ${instData.msg}`);
   }
 
   if (!instData.data || instData.data.length === 0) {
-    console.error(`Instrument ${instId} not found`);
-    process.exit(1);
+    throw new Error(`Instrument ${instId} not found`);
   }
 
   const instrument = instData.data[0];
@@ -220,42 +229,34 @@ async function main() {
   const ctVal = parseFloat(instrument.ctVal);
 
   // Convert asset size to contracts
-  // e.g., 0.1 ETH / 0.01 ctVal = 10 contracts
-  const contractsRaw = assetSize / ctVal;
+  const contractsRaw = size / ctVal;
 
   // Validate size against minimum
   const minAssetSize = minSz * ctVal;
-  if (assetSize < minAssetSize) {
-    console.error(`Size ${assetSize} ${ticker.toUpperCase()} is below minimum ${minAssetSize} ${ticker.toUpperCase()}`);
-    console.error(`  Contract value: ${ctVal} ${ticker.toUpperCase()}`);
-    console.error(`  Minimum contracts: ${minSz}`);
-    process.exit(1);
+  if (size < minAssetSize) {
+    throw new Error(`Size ${size} ${ticker.toUpperCase()} is below minimum ${minAssetSize} ${ticker.toUpperCase()}`);
   }
 
-  // Round contracts to nearest lot size (using Math.round to avoid floating point precision issues)
+  // Round contracts to nearest lot size
   const roundedContracts = Math.round(contractsRaw / lotSz) * lotSz;
   const actualAssetSize = roundedContracts * ctVal;
 
-  // Use tolerance for comparison to handle floating point precision
-  if (Math.abs(actualAssetSize - assetSize) > 1e-9) {
-    console.log(`Note: Size rounded from ${assetSize} to ${actualAssetSize} ${ticker.toUpperCase()} (${roundedContracts} contracts)`);
+  if (Math.abs(actualAssetSize - size) > 1e-9) {
+    console.log(`Note: Size rounded from ${size} to ${actualAssetSize} ${ticker.toUpperCase()} (${roundedContracts} contracts)`);
   }
 
   if (roundedContracts < minSz) {
-    console.error(`Rounded size ${roundedContracts} contracts is below minimum ${minSz}`);
-    process.exit(1);
+    throw new Error(`Rounded size ${roundedContracts} contracts is below minimum ${minSz}`);
   }
 
   // Get current price
   const tickerData = await getTicker(instId);
   if (tickerData.code !== "0") {
-    console.error(`Failed to get ticker: ${tickerData.msg}`);
-    process.exit(1);
+    throw new Error(`Failed to get ticker: ${tickerData.msg}`);
   }
 
   if (!tickerData.data || tickerData.data.length === 0) {
-    console.error(`No ticker data for ${instId}`);
-    process.exit(1);
+    throw new Error(`No ticker data for ${instId}`);
   }
 
   const currentPrice = parseFloat(tickerData.data[0].last);
@@ -273,24 +274,73 @@ async function main() {
   // Place market buy order
   const result = await placeOrder(instId, "buy", roundedContracts.toString());
 
-  console.log("\nResult:", JSON.stringify(result, null, 2));
-
   if (result.code === "0" && result.data && result.data.length > 0) {
     const orderResult = result.data[0];
     if (orderResult.sCode === "0") {
-      console.log(`\nOrder placed successfully!`);
+      console.log(`\nOKX: Order placed successfully!`);
       console.log(`  Order ID: ${orderResult.ordId}`);
+      return {
+        success: true,
+        ticker,
+        side: "long",
+        orderId: orderResult.ordId,
+        contracts: roundedContracts,
+        assetSize: actualAssetSize,
+        price: currentPrice,
+        notionalValue,
+        rawResult: result,
+      };
     } else {
-      console.error(`\nOrder failed: ${orderResult.sMsg}`);
-      process.exit(1);
+      console.error(`\nOKX: Order failed: ${orderResult.sMsg}`);
+      return {
+        success: false,
+        ticker,
+        side: "long",
+        error: orderResult.sMsg,
+        rawResult: result,
+      };
     }
   } else {
-    console.error(`\nAPI error: ${result.msg}`);
+    console.error(`\nOKX: API error: ${result.msg}`);
+    return {
+      success: false,
+      ticker,
+      side: "long",
+      error: result.msg,
+      rawResult: result,
+    };
+  }
+}
+
+async function main() {
+  const [ticker, sizeStr] = process.argv.slice(2);
+
+  if (!ticker || !sizeStr) {
+    console.error("Usage: npx tsx src/scripts/okxLong.ts <TICKER> <SIZE>");
+    console.error("Example: npx tsx src/scripts/okxLong.ts ETH 0.1");
+    console.error("Note: SIZE is in base asset (e.g., 0.1 = 0.1 ETH)");
+    process.exit(1);
+  }
+
+  const assetSize = parseFloat(sizeStr);
+  if (isNaN(assetSize) || assetSize <= 0) {
+    console.error("Size must be a positive number");
+    process.exit(1);
+  }
+
+  const result = await openOkxLong(ticker, assetSize);
+  console.log("\nResult:", JSON.stringify(result, null, 2));
+
+  if (!result.success) {
     process.exit(1);
   }
 }
 
-main().catch((err) => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+// Only run main() when executed directly, not when imported
+import { fileURLToPath } from "url";
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error("Error:", err.message);
+    process.exit(1);
+  });
+}
