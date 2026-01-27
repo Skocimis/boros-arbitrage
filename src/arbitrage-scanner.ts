@@ -153,8 +153,8 @@ console.log('='.repeat(80));
 opportunities.forEach((opp, index) => {
   if (index < 20) { // Show top 20
     console.log(`\n${index + 1}. Net APY: ${opp.netApy.toFixed(2)}%`);
-    console.log(`   Short: ${opp.shortMarket} [${opp.shortPlatform}] (${opp.shortApr.toFixed(2)}%)`);
-    console.log(`   Long:  ${opp.longMarket} [${opp.longPlatform}] (${opp.longApr.toFixed(2)}%)`);
+    console.log(`   Short: ${opp.shortMarket} [${opp.shortPlatform}] ID:${opp.shortMarketId} (${opp.shortApr.toFixed(2)}%)`);
+    console.log(`   Long:  ${opp.longMarket} [${opp.longPlatform}] ID:${opp.longMarketId} (${opp.longApr.toFixed(2)}%)`);
   }
 });
 

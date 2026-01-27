@@ -26,6 +26,8 @@
   "license": "ISC",
   "dependencies": {
     "@nktkas/hyperliquid": "^0.30.3",
+    "@pendle/boros-offchain-math": "^1.0.6",
+    "@pendle/sdk-boros": "^1.1.18",
     "axios": "^1.7.9",
     "dotenv": "^16.4.7",
     "viem": "^2.45.0"

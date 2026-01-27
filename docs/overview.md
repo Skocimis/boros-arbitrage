@@ -124,6 +124,33 @@ npx tsx src/scripts/okxLong.ts ETH 0.1
 
 **Note:** For ETH-USDT-SWAP, 1 contract = 0.01 ETH, so 0.1 ETH = 10 contracts.
 
+### Boros Scripts (`src/scripts/`)
+
+CLI utilities for Boros Yield Unit (YU) trading operations.
+
+#### borosTrade.ts
+
+Opens a long or short YU position on Boros markets.
+
+```bash
+npx tsx src/scripts/borosTrade.ts <SIDE> <MARKET_ID> <SIZE>
+npx tsx src/scripts/borosTrade.ts long 31 1000
+npx tsx src/scripts/borosTrade.ts short 33 500
+```
+
+- SIDE: `long` (receive floating, pay fixed) or `short` (pay floating, receive fixed)
+- MARKET_ID: Boros market ID (use scanner to discover available markets)
+- SIZE: Position size in YU tokens (1 YU = 1 notional unit of funding rate)
+- Fetches market data to validate state and get tick parameters
+- Uses order book to calculate limit price with 0.6% absolute slippage (rate ± 0.6%)
+- Places IOC (Immediate-or-Cancel) order for market-like execution
+- Uses official @pendle/sdk-boros SDK for transaction signing
+
+**Environment variables:**
+- `PRIVATE_KEY`: Wallet private key (required)
+- `BOROS_ACCOUNT_ID`: Boros account ID (default: 0)
+- `BOROS_RPC_URL`: Arbitrum RPC URL (default: public RPC)
+
 ---
 
 ## Existing Implementations
@@ -213,13 +240,15 @@ npm run dev
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `PRIVATE_KEY` | Yes | Master account private key for Hyperliquid |
+| `PRIVATE_KEY` | Yes | Wallet private key for Hyperliquid and Boros signing |
 | `HYPERLIQUID_SUBACCOUNT` | Yes | Hyperliquid subaccount address for trading |
 | `BINANCE_API_KEY` | Yes | Binance API key |
 | `BINANCE_API_SECRET` | Yes | Binance API secret |
 | `OKX_API_KEY` | Yes | OKX API key |
 | `OKX_SECRET_KEY` | Yes | OKX API secret key |
 | `OKX_API_PASSPHRASE` | Yes | OKX API passphrase |
+| `BOROS_ACCOUNT_ID` | No | Boros account ID (default: 0) |
+| `BOROS_RPC_URL` | No | Arbitrum RPC URL (default: public RPC) |
 
 ### Subaccount Architecture
 
@@ -262,6 +291,8 @@ Subaccount (HYPERLIQUID_SUBACCOUNT)
 
 | Package | Purpose |
 |---------|---------|
+| `@pendle/sdk-boros` | Boros trading SDK |
+| `@pendle/boros-offchain-math` | Rate/tick math utilities for Boros |
 | `@nktkas/hyperliquid` | Hyperliquid SDK |
 | `viem` | Ethereum wallet/signing |
 | `axios` | HTTP client for Binance and OKX APIs |

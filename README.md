@@ -109,6 +109,25 @@ npx tsx src/scripts/okxLong.ts ETH 0.1
 - Places market order with cross-margin mode
 - Shows notional value before execution
 
+### Boros Scripts
+
+Manual trading utilities for Boros Yield Unit (YU) positions.
+
+```bash
+# Open long YU position (receive floating, pay fixed)
+npx tsx src/scripts/borosTrade.ts long 31 1000
+
+# Open short YU position (pay floating, receive fixed)
+npx tsx src/scripts/borosTrade.ts short 33 500
+```
+
+- SIDE: `long` or `short`
+- MARKET_ID: Boros market ID (use `npm run scan` to see available markets)
+- SIZE: Position size in YU tokens (collateral notional, e.g., 1000 = $1000)
+- Uses IOC (Immediate-or-Cancel) for market-like execution
+- Applies 0.6% absolute slippage (rate ± 0.6 percentage points)
+- Validates market state (must be "Normal" to trade)
+
 ## Key Concepts
 
 ### Yield Units (YUs)
@@ -132,13 +151,18 @@ The fixed rate locked in when trading YUs. The arbitrage profit is the spread be
 ## Environment Variables
 
 ```
-PRIVATE_KEY=your_hyperliquid_private_key
+# Trading credentials
+PRIVATE_KEY=your_wallet_private_key
 HYPERLIQUID_SUBACCOUNT=your_hyperliquid_subaccount_address
 BINANCE_API_KEY=your_binance_api_key
 BINANCE_API_SECRET=your_binance_api_secret
 OKX_API_KEY=your_okx_api_key
 OKX_SECRET_KEY=your_okx_secret_key
 OKX_API_PASSPHRASE=your_okx_api_passphrase
+
+# Boros configuration (optional)
+BOROS_ACCOUNT_ID=0
+BOROS_RPC_URL=https://arb1.arbitrum.io/rpc
 ```
 
 ## Project Structure
@@ -151,7 +175,7 @@ Boros/
 │   ├── market-inspector.ts    # Market detail CLI
 │   ├── index.ts               # Strategy calculation demo
 │   ├── lib/                   # DEX client implementations
-│   └── scripts/               # Exchange trading scripts (Hyperliquid, OKX)
+│   └── scripts/               # Trading scripts (Boros, Hyperliquid, OKX)
 ├── lib/functions/             # Boros API helpers
 ├── docs/overview.md           # Detailed architecture docs
 └── snapshots/                 # Saved opportunity snapshots
