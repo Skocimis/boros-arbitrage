@@ -49,6 +49,8 @@ npm run monitor
 | `npm run scan` | One-shot scan of arbitrage opportunities |
 | `npm run monitor` | Continuous monitoring with TSI analysis |
 | `npm run dev` | Run strategy calculation demo |
+| `npx tsx src/scripts/getAPY.ts <STRATEGY> <SIZE>` | Calculate APY/TSI for a strategy |
+| `npx tsx src/scripts/openPosition.ts <STRATEGY> <SIZE>` | Execute 4-leg strategy |
 
 ## CLI Tools
 
@@ -128,6 +130,35 @@ npx tsx src/scripts/borosTrade.ts short 33 500
 - Applies 0.6% absolute slippage (rate ± 0.6 percentage points)
 - Validates market state (must be "Normal" to trade)
 
+### Strategy Scripts
+
+#### Entry Assessment (getAPY.ts)
+
+Calculate real APY and slippage for a strategy at a given position size.
+
+```bash
+npx tsx src/scripts/getAPY.ts <STRATEGY_NAME> <SIZE>
+npx tsx src/scripts/getAPY.ts ETH27Mar 100
+```
+
+- SIZE is in asset units (e.g., 100 = 100 ETH)
+- Shows optimistic (mid), pessimistic (worst exec), and realistic (VWAP) APY estimates
+- Calculates TSI at worst-price and VWAP levels
+- Displays available liquidity on both Boros order book sides
+
+#### Open Position (openPosition.ts)
+
+Execute a full 4-legged strategy position.
+
+```bash
+npx tsx src/scripts/openPosition.ts <STRATEGY_NAME> <SIZE>
+npx tsx src/scripts/openPosition.ts ETH27Mar 0.01
+```
+
+- Opens all 4 legs in parallel: DEX short, DEX long, Boros short YU, Boros long YU
+- Strategies defined in `src/config/strategies.ts`
+- SIZE is in asset units (e.g., 0.01 = 0.01 ETH)
+
 ## Key Concepts
 
 ### Yield Units (YUs)
@@ -174,8 +205,16 @@ Boros/
 │   ├── arbitrage-scanner.ts   # One-shot opportunity scanner
 │   ├── market-inspector.ts    # Market detail CLI
 │   ├── index.ts               # Strategy calculation demo
+│   ├── config/
+│   │   └── strategies.ts      # Strategy definitions (ETH27Mar, etc.)
 │   ├── lib/                   # DEX client implementations
-│   └── scripts/               # Trading scripts (Boros, Hyperliquid, OKX)
+│   └── scripts/
+│       ├── getAPY.ts          # Entry assessment (APY/TSI calculator)
+│       ├── openPosition.ts    # 4-leg strategy execution
+│       ├── borosTrade.ts      # Boros YU trading
+│       ├── hyperliquidShort.ts # Hyperliquid short positions
+│       ├── okxLong.ts         # OKX long positions
+│       └── setHyperliquidLeverage.ts
 ├── lib/functions/             # Boros API helpers
 ├── docs/overview.md           # Detailed architecture docs
 └── snapshots/                 # Saved opportunity snapshots

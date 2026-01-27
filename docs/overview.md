@@ -151,6 +151,67 @@ npx tsx src/scripts/borosTrade.ts short 33 500
 - `BOROS_ACCOUNT_ID`: Boros account ID (default: 0)
 - `BOROS_RPC_URL`: Arbitrum RPC URL (default: public RPC)
 
+### Strategy Scripts (`src/scripts/`)
+
+CLI utilities for strategy analysis and execution.
+
+#### getAPY.ts
+
+Calculates real APY and slippage for a strategy at a given position size.
+
+```bash
+npx tsx src/scripts/getAPY.ts <STRATEGY_NAME> <SIZE>
+npx tsx src/scripts/getAPY.ts ETH27Mar 100
+```
+
+- STRATEGY_NAME: Strategy from `src/config/strategies.ts` (e.g., "ETH27Mar")
+- SIZE: Position size in asset units (e.g., 100 = 100 ETH)
+- Fetches market data and order books for both Boros markets
+- Calculates three APY estimates:
+  - **Optimistic (market mid)**: shortMidApr - longMidApr
+  - **Pessimistic (worst exec)**: shortExecApr - longExecApr (walks order book to SIZE)
+  - **Realistic (VWAP)**: shortVwapApr - longVwapApr (volume-weighted average)
+- Calculates TSI at worst-price and VWAP levels
+- Displays available liquidity on both order book sides
+
+#### openPosition.ts
+
+Opens a full 4-legged strategy position across DEXes and Boros.
+
+```bash
+npx tsx src/scripts/openPosition.ts <STRATEGY_NAME> <SIZE>
+npx tsx src/scripts/openPosition.ts ETH27Mar 0.01
+```
+
+- STRATEGY_NAME: Strategy from `src/config/strategies.ts`
+- SIZE: Position size in asset units (e.g., 0.01 = 0.01 ETH)
+- Creates Boros agent once, reuses for both YU positions
+- Executes all 4 legs in parallel:
+  - Leg 1: Short perp on shortDex (Hyperliquid)
+  - Leg 2: Long perp on longDex (OKX)
+  - Leg 3: Long YU on Boros
+  - Leg 4: Short YU on Boros
+- Reports detailed results for all legs
+
+### Strategy Configuration (`src/config/strategies.ts`)
+
+Defines 4-legged arbitrage strategy configurations.
+
+```typescript
+import { getStrategy, listStrategies } from "../config/strategies.js";
+
+const strategy = getStrategy("ETH27Mar");
+const allStrategies = listStrategies(); // ["ETH27Mar", ...]
+```
+
+Each strategy specifies:
+- `name`: Strategy identifier (e.g., "ETH27Mar")
+- `ticker`: Underlying asset (e.g., "ETH")
+- `shortDex`: Exchange for short perp ("HL" or "OKX")
+- `longDex`: Exchange for long perp ("HL" or "OKX")
+- `borosLongMarketId`: Boros market ID for long YU
+- `borosShortMarketId`: Boros market ID for short YU
+
 ---
 
 ## Existing Implementations
