@@ -48,9 +48,12 @@ npm run monitor
 |---------|-------------|
 | `npm run scan` | One-shot scan of arbitrage opportunities |
 | `npm run monitor` | Continuous monitoring with TSI analysis |
+| `npm run track` | Track active strategy PnL every 5 minutes |
 | `npm run dev` | Run strategy calculation demo |
 | `npx tsx src/scripts/getAPY.ts <STRATEGY> <SIZE>` | Calculate APY/TSI for a strategy |
 | `npx tsx src/scripts/openPosition.ts <STRATEGY> <SIZE>` | Execute 4-leg strategy |
+| `npx tsx src/scripts/trackStrategy.ts <STRATEGY>` | One-shot strategy position tracking |
+| `python helpers/visualize-pnl.py` | Visualize PnL history chart |
 
 ## CLI Tools
 
@@ -159,6 +162,50 @@ npx tsx src/scripts/openPosition.ts ETH27Mar 0.01
 - Strategies defined in `src/config/strategies.ts`
 - SIZE is in asset units (e.g., 0.01 = 0.01 ETH)
 
+#### Track Strategy (trackStrategy.ts)
+
+One-shot tracking of an active 4-leg strategy position.
+
+```bash
+npx tsx src/scripts/trackStrategy.ts <STRATEGY_NAME>
+npx tsx src/scripts/trackStrategy.ts ETH27Mar
+```
+
+- Fetches balances and positions from Hyperliquid, OKX, and Boros
+- Shows ETH price and implied APRs
+- Displays liquidation prices/APRs for all 4 legs
+- Calculates real PnL (current balances vs initial)
+
+### Strategy Tracker
+
+Continuous PnL tracking with CSV logging.
+
+```bash
+npm run track
+```
+
+- Runs `trackStrategy("ETH27Mar")` every 5 minutes
+- Logs timestamp and real PnL to `data/pnl.csv`
+- Shows live status in console
+
+### PnL Visualization
+
+Visualize PnL history from CSV data.
+
+```bash
+# Install Python dependencies
+pip install -r helpers/requirements.txt
+
+# Display chart
+python helpers/visualize-pnl.py
+
+# Save chart to file
+python helpers/visualize-pnl.py --output chart.png
+
+# Use custom CSV path
+python helpers/visualize-pnl.py --csv data/pnl.csv
+```
+
 ## Key Concepts
 
 ### Yield Units (YUs)
@@ -203,6 +250,7 @@ Boros/
 ├── src/
 │   ├── arbitrage-monitor.ts   # Continuous monitoring dashboard
 │   ├── arbitrage-scanner.ts   # One-shot opportunity scanner
+│   ├── strategy-tracker.ts    # Continuous PnL tracker (npm run track)
 │   ├── market-inspector.ts    # Market detail CLI
 │   ├── index.ts               # Strategy calculation demo
 │   ├── config/
@@ -211,11 +259,17 @@ Boros/
 │   └── scripts/
 │       ├── getAPY.ts          # Entry assessment (APY/TSI calculator)
 │       ├── openPosition.ts    # 4-leg strategy execution
+│       ├── trackStrategy.ts   # One-shot strategy tracking
 │       ├── borosTrade.ts      # Boros YU trading
 │       ├── hyperliquidShort.ts # Hyperliquid short positions
 │       ├── okxLong.ts         # OKX long positions
 │       └── setHyperliquidLeverage.ts
 ├── lib/functions/             # Boros API helpers
+├── helpers/                   # Helper utilities (Python)
+│   ├── visualize-pnl.py       # PnL chart visualization
+│   └── requirements.txt       # Python dependencies
+├── data/                      # PnL tracking data (gitignored)
+│   └── pnl.csv                # Strategy PnL history
 ├── docs/overview.md           # Detailed architecture docs
 └── snapshots/                 # Saved opportunity snapshots
 ```

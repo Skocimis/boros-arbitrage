@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "scan": "tsx src/arbitrage-scanner.ts",
-    "monitor": "tsx src/arbitrage-monitor.ts"
+    "monitor": "tsx src/arbitrage-monitor.ts",
+    "track": "tsx src/strategy-tracker.ts"
   },
   "keywords": [
     "boros",

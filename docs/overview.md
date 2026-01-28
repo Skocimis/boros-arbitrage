@@ -193,6 +193,70 @@ npx tsx src/scripts/openPosition.ts ETH27Mar 0.01
   - Leg 4: Short YU on Boros
 - Reports detailed results for all legs
 
+#### trackStrategy.ts
+
+Tracks an active 4-legged strategy position across all venues.
+
+```bash
+npx tsx src/scripts/trackStrategy.ts <STRATEGY_NAME>
+npx tsx src/scripts/trackStrategy.ts ETH27Mar
+```
+
+- STRATEGY_NAME: Strategy from `src/config/strategies.ts`
+- Fetches data from Hyperliquid, OKX, and Boros in parallel
+- Displays:
+  - ETH price and implied APRs (long/short)
+  - Liquidation prices (HL, OKX) and APRs (Boros)
+  - Initial vs current balances (USD + ETH)
+  - Real PnL calculation
+- Also exports `trackStrategy()` function for programmatic use:
+  ```typescript
+  import { trackStrategy, StrategyTrackingResult } from "./trackStrategy.js";
+  const result = await trackStrategy("ETH27Mar");
+  ```
+
+### Strategy Tracker (`src/strategy-tracker.ts`)
+
+Continuous PnL tracking service with CSV logging.
+
+```bash
+npm run track
+```
+
+- Runs `trackStrategy("ETH27Mar")` every 5 minutes
+- Creates `data/` directory and `pnl.csv` if they don't exist
+- Appends timestamp and real PnL (3 decimal places) to CSV
+- Shows live status in console
+
+**CSV format:**
+```csv
+timestamp,realPnlUsd
+2024-01-15T10:30:00.000Z,-0.098
+2024-01-15T10:35:00.000Z,-0.087
+```
+
+### PnL Visualization (`helpers/visualize-pnl.py`)
+
+Python script to visualize PnL history as a chart. Located in the `helpers/` directory.
+
+```bash
+# Install dependencies
+pip install -r helpers/requirements.txt
+
+# Display chart interactively
+python helpers/visualize-pnl.py
+
+# Save chart to file
+python helpers/visualize-pnl.py --output chart.png
+
+# Use custom CSV path
+python helpers/visualize-pnl.py --csv data/pnl.csv
+```
+
+- Plots PnL over time with profit/loss areas colored green/red
+- Shows stats: current PnL, min, max, data points
+- Supports saving to PNG file
+
 ### Strategy Configuration (`src/config/strategies.ts`)
 
 Defines 4-legged arbitrage strategy configurations.
@@ -344,7 +408,7 @@ Subaccount (HYPERLIQUID_SUBACCOUNT)
 - Effective leverage calculation
 - Cross-venue margin utilization
 - Emergency position closure
-- PnL tracking
+- PnL tracking (**implemented**: `npm run track`, `trackStrategy.ts`)
 
 ---
 
