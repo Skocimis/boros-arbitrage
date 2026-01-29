@@ -1,12 +1,12 @@
-# Boros - Cross-Exchange Funding Rate Arbitrage
+# Cross-Exchange Funding Rate Arbitrage
 
-System for executing delta-neutral, fixed-yield funding rate arbitrage using Boros Yield Units (YUs) across perpetual exchanges.
+Cross-exchange funding rate arbitrage system utilizing Boros markets to fix funding. On one leg, pay fixed and receive floating; on the other, pay floating and receive fixed. These cancel out with perp positions on the corresponding exchanges, leaving a delta-neutral fixed APY position.
 
 ## Overview
 
-Boros facilitates Interest Rate Swaps onchain through **Yield Units (YUs)**. One YU represents one notional unit of a perp market's funding rate. This enables converting volatile funding rates into fixed yields.
+[Boros](https://boros.pendle.finance/) (by Pendle) facilitates Interest Rate Swaps onchain through **Yield Units (YUs)**. One YU represents one notional unit of a perp market's funding rate. This enables converting volatile funding rates into fixed yields.
 
-The strategy captures the spread between Implied APRs on Boros markets for the same asset across different exchanges (e.g., Hyperliquid vs Binance), locking in a fixed yield with zero directional exposure.
+This system captures the spread between Implied APRs on Boros markets for the same asset across different exchanges (e.g., Hyperliquid vs Binance), locking in a fixed yield with zero directional exposure.
 
 ## The Four-Leg Strategy
 

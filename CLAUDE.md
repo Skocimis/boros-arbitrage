@@ -4,93 +4,71 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Boros is a cross-exchange funding rate arbitrage system that executes delta-neutral, fixed-yield strategies using Boros Yield Units (YUs) across perpetual exchanges (Hyperliquid, OKX, Binance). It locks in fixed yield by exploiting Implied APR spreads on Boros markets for the same asset across different exchanges.
+Cross-exchange funding rate arbitrage system that utilizes Boros markets to fix funding. On one leg, pay fixed and receive floating; on the other, pay floating and receive fixed. These cancel out with perp positions on the corresponding exchanges, leaving a delta-neutral fixed APY position equal to the Implied APR spread between exchanges.
 
 ## Commands
 
 ```bash
-npm run dev          # Run strategy calculation demo (tsx, no compile)
-npm run build        # Compile TypeScript (tsc)
-npm run start        # Run compiled output
-npm run typecheck    # Type check only (tsc --noEmit)
-npm run scan         # One-shot arbitrage opportunity scanner
-npm run monitor      # Real-time monitoring dashboard (60s polling)
-npm run track        # Continuous PnL tracker (5-min intervals, CSV to data/pnl.csv)
+npm run build          # TypeScript compilation (tsc)
+npm run typecheck      # Type-check without emitting (tsc --noEmit)
+npm run dev            # Run strategy calculation demo (src/index.ts)
+npm run scan           # One-shot arbitrage opportunity scanner
+npm run monitor        # Continuous monitoring dashboard (60s polling)
+npm run track          # Continuous PnL tracker (5-minute intervals, CSV logging)
 ```
 
-Individual scripts are run via `npx tsx src/scripts/<script>.ts <args>`. Key ones:
-- `getAPY.ts <STRATEGY> <SIZE>` — APY/slippage calculator for entry assessment
-- `openPosition.ts <STRATEGY> <SIZE>` — Execute full 4-leg strategy in parallel
-- `trackStrategy.ts <STRATEGY>` — One-shot position tracking across all venues
-- `borosTrade.ts <SIDE> <MARKET_ID> <SIZE>` — Manual Boros YU trade
-- `hyperliquidShort.ts <TICKER> <SIZE>` — Manual Hyperliquid short
-- `okxLong.ts <TICKER> <SIZE>` — Manual OKX long
+Scripts are run directly with tsx (no build step needed for development):
+```bash
+npx tsx src/scripts/getAPY.ts <STRATEGY> <SIZE>
+npx tsx src/scripts/openPosition.ts <STRATEGY> <SIZE>
+npx tsx src/scripts/trackStrategy.ts <STRATEGY>
+npx tsx src/scripts/borosTrade.ts <SIDE> <MARKET_ID> <SIZE>
+npx tsx src/scripts/hyperliquidShort.ts <TICKER> <SIZE>
+npx tsx src/scripts/okxLong.ts <TICKER> <SIZE>
+npx tsx src/scripts/setHyperliquidLeverage.ts <TICKER> <LEVERAGE>
+npx tsx src/market-inspector.ts <MARKET_ID> ...
+```
 
-## Tech Stack
-
-- **TypeScript** (strict mode, ES2022 target, ESM via NodeNext)
-- **Node.js >=22.0.0**, **npm**
-- **Key deps:** `@pendle/sdk-boros`, `@pendle/boros-offchain-math`, `@nktkas/hyperliquid`, `viem`, `axios`
-- No test framework, no linter configured
+No test framework is configured. There are no lint or format scripts.
 
 ## Architecture
 
-### Four-Leg Strategy Pattern
+### Four-Leg Strategy
 
-Each strategy opens 4 simultaneous positions to achieve delta-neutral fixed yield:
+The core strategy opens 4 simultaneous positions so all floating rates cancel, leaving a fixed yield equal to the Implied APR spread:
 
-1. **Short perp** on one DEX (e.g., Hyperliquid) — receive floating funding
-2. **Long perp** on another DEX (e.g., OKX) — pay floating funding
-3. **Long YU** on Boros — receive floating, pay fixed (Implied APR)
-4. **Short YU** on Boros — pay floating, receive fixed (Implied APR)
+1. **Short YU on Boros** (higher-APR exchange) — pay floating, receive fixed
+2. **Short Perp on that exchange** — receive floating funding (cancels leg 1 floating)
+3. **Long YU on Boros** (lower-APR exchange) — receive floating, pay fixed
+4. **Long Perp on that exchange** — pay floating funding (cancels leg 3 floating)
 
-Floating rates cancel out. Net yield = high Implied APR - low Implied APR.
+Legs 2 + 4 also provide delta-neutrality on the underlying asset price.
 
-### DexClient Abstraction (`src/lib/DexClient.ts`)
+### Key Components
 
-Abstract base class with `getBalance()`, `order()`, `getFunding()` methods. Implementations: `BinanceClient` (partial), `HyperliquidClient` (skeleton). Full trading for Hyperliquid/OKX is done through the scripts in `src/scripts/` using their respective SDKs/REST APIs directly.
+- **Opportunity layer** (`src/arbitrage-scanner.ts`, `src/arbitrage-monitor.ts`): Fetches all Boros markets, identifies same-asset pairs across exchanges, calculates Implied APR spreads and TSI (Total Slippage Impact) at various sizes.
+- **Strategy config** (`src/config/strategies.ts`): Defines strategies mapping a name to Boros market IDs, exchange selections (HL/OKX), and ticker. Add new strategies to the `STRATEGIES` record.
+- **Execution scripts** (`src/scripts/`): Single-purpose CLI tools. `openPosition.ts` coordinates all 4 legs in parallel via `Promise.all()`. Exchange-specific scripts handle individual legs.
+- **DEX client abstraction** (`src/lib/DexClient.ts`): Abstract base class with `getBalance()`, `order()`, `getFunding()`. `BinanceClient` is partially implemented; `HyperliquidClient` is a skeleton. Full Hyperliquid trading uses `@nktkas/hyperliquid` SDK directly in scripts.
+- **Boros API helpers** (`lib/functions/`): Typed HTTP wrappers for market and order book endpoints.
+- **Tracking** (`src/strategy-tracker.ts`, `src/scripts/trackStrategy.ts`): Fetches balances/positions from all venues, calculates real PnL, logs to `data/pnl.csv`.
 
-### Strategy Registry (`src/config/strategies.ts`)
+### Boros API Conventions
 
-Strategies are defined in the `STRATEGIES` record. Each strategy specifies the ticker, which DEX is short/long, and the two Boros market IDs. To add a strategy, add an entry to this record.
+- Order books use **parallel arrays** (`ia[]` for Implied APR in basis points, `sz[]` for size in wei). Divide `ia` by 10,000 for decimal APR, `sz` by 1e18 for token amount.
+- API field `"long"` = bid side (for shorting YU); `"short"` = ask side (for longing YU).
+- Funding rate annualization: Binance uses `rate * 3 * 365` (8h intervals); Hyperliquid uses `rate * 24 * 365` (1h intervals).
+- Slippage: scripts apply 0.5% (Hyperliquid) or 0.6% absolute (Boros) slippage buffers with IOC orders.
 
-### Script Dual-Mode Pattern
+## Tech Stack
 
-All execution scripts (`borosTrade.ts`, `hyperliquidShort.ts`, `okxLong.ts`) work both as CLI tools (`npx tsx script.ts <args>`) and as importable modules. This allows `openPosition.ts` to compose them programmatically.
-
-### Order Execution
-
-- All orders use IOC (Immediate-or-Cancel) for market-like execution
-- Boros slippage: 0.6 percentage points absolute (rate ± 0.6%)
-- Hyperliquid slippage: 50 basis points (0.5%)
-- OKX: market orders directly
-- `openPosition.ts` executes all 4 legs via `Promise.all()` — no rollback on partial failure
-
-### Funding Rate Annualization
-
-Rates are annualized differently per exchange:
-- **Binance**: `fundingRate * 3 * 365` (8-hour intervals)
-- **Hyperliquid**: `fundingRate * 24 * 365` (hourly intervals)
-- **Boros**: Implied APRs are already annualized decimals
-
-### Key Boros Concepts
-
-- **Order book structure**: parallel arrays — `ia[]` (Implied APR in basis points), `sz[]` (size in wei)
-- **VWAP**: `Σ(levelSize × levelApr) / totalSize`
-- **TSI (Total Slippage Impact)**: `|longExecApr - longMid| + |shortMid - shortExecApr|`
-- Only trade markets in "Normal" state (not CloseOnly, Paused, or Settled)
-- Boros agent creation requires ETH on Arbitrum for gas — create once and reuse
-
-### Data
-
-- PnL history: `data/pnl.csv` (timestamp,realPnlUsd) — gitignored
-- Monitor snapshots: `snapshots/{shortId}-{longId}/`
-- `trackStrategy.ts` has hardcoded `INITIAL_BALANCES` — must be updated when opening new positions
+- **Runtime**: Node.js >= 22, ES Modules (`"type": "module"`)
+- **Language**: TypeScript 5.7 with strict mode, `noUnusedLocals`, `noUnusedParameters`, `noImplicitReturns`
+- **Execution**: `tsx` for running .ts files directly during development
+- **Module resolution**: `NodeNext` — use `.js` extensions in import paths
+- **Key deps**: `@pendle/sdk-boros`, `@pendle/boros-offchain-math`, `@nktkas/hyperliquid`, `viem` (wallet/signing), `axios`
+- **Exchange auth**: HMAC-SHA256 for OKX and Binance REST APIs; viem `privateKeyToAccount` for Hyperliquid/Boros signing
 
 ## Environment
 
-Required in `.env` (copy from `.env.example`):
-- `PRIVATE_KEY`, `HYPERLIQUID_SUBACCOUNT` — wallet/subaccount
-- `BINANCE_API_KEY`, `BINANCE_API_SECRET` — Binance
-- `OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_API_PASSPHRASE` — OKX
-- Optional: `BOROS_ACCOUNT_ID` (default 0), `BOROS_RPC_URL` (default public Arbitrum RPC)
+Requires `.env` file (see `.env.example`). Key variables: `PRIVATE_KEY`, `HYPERLIQUID_SUBACCOUNT`, `BINANCE_API_KEY`, `BINANCE_API_SECRET`, `OKX_API_KEY`, `OKX_SECRET_KEY`, `OKX_API_PASSPHRASE`. Optional: `BOROS_ACCOUNT_ID` (default 0), `BOROS_RPC_URL`.

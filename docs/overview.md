@@ -1,6 +1,6 @@
-# Boros System Overview
+# System Overview
 
-System for executing delta-neutral, fixed-yield funding rate arbitrage using Boros Yield Units (YUs) across perpetual exchanges.
+Cross-exchange funding rate arbitrage system utilizing Boros markets to fix funding. On one leg, pay fixed and receive floating; on the other, pay floating and receive fixed. These cancel out with perp positions on the corresponding exchanges, leaving a delta-neutral fixed APY position.
 
 ## Key Concepts
 

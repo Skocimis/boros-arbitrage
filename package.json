@@ -1,8 +1,8 @@
 {
-  "name": "boros-arbitrage",
+  "name": "funding-rate-arbitrage",
   "version": "1.0.0",
   "type": "module",
-  "description": "Cross-exchange funding rate arbitrage using Boros Yield Units",
+  "description": "Cross-exchange funding rate arbitrage utilizing Boros markets to fix funding",
   "main": "dist/index.js",
   "scripts": {
     "dev": "tsx src/index.ts",
