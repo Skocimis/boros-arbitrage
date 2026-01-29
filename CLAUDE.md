@@ -15,6 +15,7 @@ npm run dev            # Run strategy calculation demo (src/index.ts)
 npm run scan           # One-shot arbitrage opportunity scanner
 npm run monitor        # Continuous monitoring dashboard (60s polling)
 npm run track          # Continuous PnL tracker (5-minute intervals, CSV logging)
+npm run opportunities  # Continuous APY tracker for ETH27Mar at 0.5 size (5-minute intervals, CSV logging)
 ```
 
 Scripts are run directly with tsx (no build step needed for development):
@@ -52,6 +53,8 @@ Legs 2 + 4 also provide delta-neutrality on the underlying asset price.
 - **DEX client abstraction** (`src/lib/DexClient.ts`): Abstract base class with `getBalance()`, `order()`, `getFunding()`. `BinanceClient` is partially implemented; `HyperliquidClient` is a skeleton. Full Hyperliquid trading uses `@nktkas/hyperliquid` SDK directly in scripts.
 - **Boros API helpers** (`lib/functions/`): Typed HTTP wrappers for market and order book endpoints.
 - **Tracking** (`src/strategy-tracker.ts`, `src/scripts/trackStrategy.ts`): Fetches balances/positions from all venues, calculates real PnL, logs to `data/pnl.csv`.
+- **Opportunity tracking** (`src/opportunity-tracker.ts`): Periodically fetches VWAP APY for a strategy and logs to `data/opportunities.csv`.
+- **Visualization helpers** (`helpers/`): Python scripts for charting CSV data. `visualize-pnl.py` plots PnL over time; `visualize-opportunities.py` plots realistic APY over time. Require `pandas` and `matplotlib`.
 
 ### Boros API Conventions
 

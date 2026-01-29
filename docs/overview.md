@@ -235,26 +235,60 @@ timestamp,realPnlUsd
 2024-01-15T10:35:00.000Z,-0.087
 ```
 
-### PnL Visualization (`helpers/visualize-pnl.py`)
+### Opportunity Tracker (`src/opportunity-tracker.ts`)
 
-Python script to visualize PnL history as a chart. Located in the `helpers/` directory.
+Continuous APY tracking service with CSV logging.
 
 ```bash
-# Install dependencies
+npm run opportunities
+```
+
+- Runs `getApyData("ETH27Mar", 0.5)` every 5 minutes
+- Creates `data/` directory and `opportunities.csv` if they don't exist
+- Appends timestamp and realistic APY (VWAP) to CSV
+- Shows live status in console
+
+**CSV format:**
+```csv
+timestamp,realisticApy
+2025-01-28T12:00:00.000Z,4.2310
+2025-01-28T12:05:00.000Z,4.1890
+```
+
+### Visualization Helpers (`helpers/`)
+
+Python scripts for charting CSV data. Require `pandas` and `matplotlib`.
+
+```bash
 pip install -r helpers/requirements.txt
+```
 
-# Display chart interactively
+#### visualize-pnl.py
+
+Visualize PnL history as a chart.
+
+```bash
 python helpers/visualize-pnl.py
-
-# Save chart to file
 python helpers/visualize-pnl.py --output chart.png
-
-# Use custom CSV path
 python helpers/visualize-pnl.py --csv data/pnl.csv
 ```
 
 - Plots PnL over time with profit/loss areas colored green/red
 - Shows stats: current PnL, min, max, data points
+- Supports saving to PNG file
+
+#### visualize-opportunities.py
+
+Visualize opportunity APY history as a chart.
+
+```bash
+python helpers/visualize-opportunities.py
+python helpers/visualize-opportunities.py --output chart.png
+python helpers/visualize-opportunities.py --csv data/opportunities.csv
+```
+
+- Plots realistic APY (VWAP) over time with positive/negative areas colored green/red
+- Shows stats: current, min, max, mean APY, data points
 - Supports saving to PNG file
 
 ### Strategy Configuration (`src/config/strategies.ts`)
@@ -422,3 +456,92 @@ Subaccount (HYPERLIQUID_SUBACCOUNT)
 | `viem` | Ethereum wallet/signing |
 | `axios` | HTTP client for Binance and OKX APIs |
 | `dotenv` | Environment configuration |
+
+---
+
+## File Glossary
+
+Complete listing of every project file (excluding `node_modules/`, `dist/`).
+
+### Root
+
+| File | Description |
+|------|-------------|
+| `package.json` | Project manifest, npm scripts, dependencies |
+| `tsconfig.json` | TypeScript compiler configuration (strict, NodeNext) |
+| `.env` | Environment variables (not committed) |
+| `.env.example` | Template for required environment variables |
+| `.gitignore` | Git ignore rules |
+| `README.md` | Project readme |
+| `CLAUDE.md` | Claude Code instructions and project summary |
+
+### `docs/`
+
+| File | Description |
+|------|-------------|
+| `overview.md` | This file — full system documentation and file glossary |
+
+### `lib/functions/`
+
+| File | Description |
+|------|-------------|
+| `getMarketById.ts` | Boros API: fetch market by ID with full type definitions |
+| `getOrderBookByMarketId.ts` | Boros API: fetch order book (parallel arrays: `ia[]`, `sz[]`) |
+
+### `src/`
+
+| File | Description |
+|------|-------------|
+| `index.ts` | Strategy calculation demo (`npm run dev`) |
+| `arbitrage-scanner.ts` | One-shot cross-exchange opportunity scanner (`npm run scan`) |
+| `arbitrage-monitor.ts` | Continuous monitoring dashboard with TSI tracking (`npm run monitor`) |
+| `strategy-tracker.ts` | Continuous PnL tracker with CSV logging (`npm run track`) |
+| `opportunity-tracker.ts` | Continuous APY tracker with CSV logging (`npm run opportunities`) |
+| `market-inspector.ts` | CLI tool to inspect Boros market details |
+
+### `src/config/`
+
+| File | Description |
+|------|-------------|
+| `strategies.ts` | Strategy definitions mapping names to market IDs, exchanges, tickers |
+
+### `src/lib/`
+
+| File | Description |
+|------|-------------|
+| `DexClient.ts` | Abstract base class with `getBalance()`, `order()`, `getFunding()` |
+| `BinanceClient.ts` | Binance Futures client (partial: balance + funding, no order) |
+| `HyperliquidClient.ts` | Hyperliquid client (skeleton: funding only) |
+
+### `src/scripts/`
+
+| File | Description |
+|------|-------------|
+| `getAPY.ts` | Calculate APY and slippage for a strategy at a given size |
+| `openPosition.ts` | Open full 4-legged strategy position across all venues |
+| `trackStrategy.ts` | Track an active strategy position across all venues |
+| `borosTrade.ts` | Open a long or short YU position on Boros |
+| `hyperliquidShort.ts` | Open a short perp position on Hyperliquid |
+| `okxLong.ts` | Open a long perp position on OKX |
+| `setHyperliquidLeverage.ts` | Set leverage for an asset on Hyperliquid |
+
+### `helpers/`
+
+| File | Description |
+|------|-------------|
+| `requirements.txt` | Python dependencies for visualization scripts |
+| `visualize-pnl.py` | Chart PnL history from `data/pnl.csv` |
+| `visualize-opportunities.py` | Chart APY history from `data/opportunities.csv` |
+
+### `data/` (generated at runtime)
+
+| File | Description |
+|------|-------------|
+| `pnl.csv` | PnL tracking log (timestamp, realPnlUsd) |
+| `opportunities.csv` | APY tracking log (timestamp, realisticApy) |
+
+### `snapshots/` (generated at runtime)
+
+| Directory | Description |
+|-----------|-------------|
+| `{shortId}-{longId}/` | JSON snapshots saved by `arbitrage-monitor.ts` for each market pair |

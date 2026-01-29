@@ -12,7 +12,8 @@
     "clean": "rm -rf dist",
     "scan": "tsx src/arbitrage-scanner.ts",
     "monitor": "tsx src/arbitrage-monitor.ts",
-    "track": "tsx src/strategy-tracker.ts"
+    "track": "tsx src/strategy-tracker.ts",
+    "opportunities": "tsx src/opportunity-tracker.ts"
   },
   "keywords": [
     "boros",

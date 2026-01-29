@@ -189,6 +189,53 @@ function formatPercent(value: number): string {
   return `${(value * 100).toFixed(2)}%`;
 }
 
+export interface ApyData {
+  timestamp: Date;
+  strategyName: string;
+  sizeAsset: number;
+  realisticApy: number;
+}
+
+/**
+ * Fetches market data and calculates the realistic (VWAP) APY for a strategy.
+ * Returns structured data instead of printing to console.
+ */
+export async function getApyData(
+  strategyName: string,
+  sizeAsset: number
+): Promise<ApyData> {
+  const strategy = getStrategy(strategyName);
+  if (!strategy) {
+    throw new Error(
+      `Strategy "${strategyName}" not found. Available: ${listStrategies().join(", ")}`
+    );
+  }
+
+  const [_longMarket, _shortMarket, longOrderBook, shortOrderBook] =
+    await Promise.all([
+      getMarket(strategy.borosLongMarketId),
+      getMarket(strategy.borosShortMarketId),
+      getOrderBook(strategy.borosLongMarketId),
+      getOrderBook(strategy.borosShortMarketId),
+    ]);
+
+  const shortExec = calculateExecutionLevel(shortOrderBook.long, sizeAsset);
+  const longExec = calculateExecutionLevel(longOrderBook.short, sizeAsset);
+
+  if (!shortExec || !longExec) {
+    throw new Error("Unable to calculate execution levels from order books");
+  }
+
+  const realisticApy = shortExec.vwapApr - longExec.vwapApr;
+
+  return {
+    timestamp: new Date(),
+    strategyName,
+    sizeAsset,
+    realisticApy,
+  };
+}
+
 async function getApy(strategyName: string, sizeAsset: number): Promise<void> {
   // Look up strategy
   const strategy = getStrategy(strategyName);
@@ -355,7 +402,10 @@ async function main() {
   await getApy(strategyName, size);
 }
 
-main().catch((err) => {
-  console.error("Error:", err.message);
-  process.exit(1);
-});
+import { fileURLToPath } from "url";
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error("Error:", err.message);
+    process.exit(1);
+  });
+}
