@@ -11,6 +11,8 @@ Cross-exchange funding rate arbitrage system that utilizes Boros markets to fix 
 ```bash
 npm run build          # TypeScript compilation (tsc)
 npm run typecheck      # Type-check without emitting (tsc --noEmit)
+npm run start          # Run compiled output (node dist/index.js)
+npm run clean          # Remove build output (rm -rf dist)
 npm run dev            # Run strategy calculation demo (src/index.ts)
 npm run scan           # One-shot arbitrage opportunity scanner
 npm run monitor        # Continuous monitoring dashboard (60s polling)
@@ -56,12 +58,60 @@ Legs 2 + 4 also provide delta-neutrality on the underlying asset price.
 - **Opportunity tracking** (`src/opportunity-tracker.ts`): Periodically fetches VWAP APY for a strategy and logs to `data/opportunities.csv`.
 - **Visualization helpers** (`helpers/`): Python scripts for charting CSV data. `visualize-pnl.py` plots PnL over time; `visualize-opportunities.py` plots realistic APY over time. Require `pandas` and `matplotlib`.
 
-### Boros API Conventions
+### File Map
 
+| Path | Purpose |
+|------|---------|
+| `src/index.ts` | Strategy calculation demo (`npm run dev`) |
+| `src/arbitrage-scanner.ts` | One-shot cross-exchange opportunity scanner (`npm run scan`) |
+| `src/arbitrage-monitor.ts` | Continuous monitoring dashboard with TSI tracking (`npm run monitor`) |
+| `src/strategy-tracker.ts` | Continuous PnL tracker with CSV logging (`npm run track`) |
+| `src/opportunity-tracker.ts` | Continuous APY tracker with CSV logging (`npm run opportunities`) |
+| `src/market-inspector.ts` | CLI tool to inspect Boros market details |
+| `src/config/strategies.ts` | Strategy definitions mapping names to market IDs, exchanges, tickers |
+| `src/lib/DexClient.ts` | Abstract base class: `getBalance()`, `order()`, `getFunding()` |
+| `src/lib/BinanceClient.ts` | Binance Futures client (partial: balance + funding, no order) |
+| `src/lib/HyperliquidClient.ts` | Hyperliquid client (skeleton: funding only) |
+| `src/scripts/getAPY.ts` | Calculate APY and slippage for a strategy at a given size |
+| `src/scripts/openPosition.ts` | Open full 4-legged strategy position across all venues |
+| `src/scripts/trackStrategy.ts` | Track an active strategy position across all venues |
+| `src/scripts/borosTrade.ts` | Open a long or short YU position on Boros |
+| `src/scripts/hyperliquidShort.ts` | Open a short perp position on Hyperliquid |
+| `src/scripts/okxLong.ts` | Open a long perp position on OKX |
+| `src/scripts/setHyperliquidLeverage.ts` | Set leverage for an asset on Hyperliquid |
+| `lib/functions/getMarketById.ts` | Boros API: fetch market by ID with full type definitions |
+| `lib/functions/getOrderBookByMarketId.ts` | Boros API: fetch order book (parallel arrays: `ia[]`, `sz[]`) |
+| `helpers/visualize-pnl.py` | Chart PnL history from `data/pnl.csv` |
+| `helpers/visualize-opportunities.py` | Chart APY history from `data/opportunities.csv` |
+
+### Conventions and Gotchas
+
+**Boros API:**
 - Order books use **parallel arrays** (`ia[]` for Implied APR in basis points, `sz[]` for size in wei). Divide `ia` by 10,000 for decimal APR, `sz` by 1e18 for token amount.
 - API field `"long"` = bid side (for shorting YU); `"short"` = ask side (for longing YU).
-- Funding rate annualization: Binance uses `rate * 3 * 365` (8h intervals); Hyperliquid uses `rate * 24 * 365` (1h intervals).
-- Slippage: scripts apply 0.5% (Hyperliquid) or 0.6% absolute (Boros) slippage buffers with IOC orders.
+- Market states: `Normal`, `CloseOnly`, `Paused`, `Settled`. Only `Normal` markets are tradeable.
+
+**APR vs APY terminology:**
+- **Implied APR** = the fixed rate on an individual Boros market (what order books trade).
+- **Underlying APR** = the floating funding rate from the perpetual exchange.
+- **APY** (in this codebase) = the net spread of a strategy (shortImpliedAPR - longImpliedAPR). This is the strategy's fixed yield.
+
+**Size units — not uniform across scripts:**
+- `getAPY.ts`, `openPosition.ts`, `hyperliquidShort.ts`, `okxLong.ts`: size in **asset units** (e.g., 0.01 = 0.01 ETH).
+- `borosTrade.ts`: size in **YU notional ($)** (e.g., 1000 = $1000 collateral).
+
+**Funding rate annualization:**
+- Binance: `rate * 3 * 365` (8h intervals).
+- Hyperliquid: `rate * 24 * 365` (1h intervals).
+
+**Execution details:**
+- Slippage buffers: 0.5% (Hyperliquid), 0.6% absolute (Boros) with IOC orders.
+- `openPosition.ts` fires all 4 legs via `Promise.all()` — no rollback on partial failure.
+- Hardcoded asset prices in `arbitrage-monitor.ts`: BTC=$100k, ETH=$3k, BNB=$1k (used for USD size conversion in TSI calculations).
+- Strategy name `"ETH27Mar"` is hardcoded in `strategy-tracker.ts` and `opportunity-tracker.ts`.
+
+**Subaccount signing (Hyperliquid):**
+- Master account (`PRIVATE_KEY`) signs all transactions with the `vaultAddress` parameter set to `HYPERLIQUID_SUBACCOUNT`. Positions and margin live on the subaccount.
 
 ## Tech Stack
 
