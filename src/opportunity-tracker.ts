@@ -17,7 +17,7 @@ import { getApyData } from "./scripts/getAPY.js";
 import "dotenv/config";
 
 const STRATEGY_NAME = "ETH27Mar";
-const SIZE = 0.5;
+const SIZE = 0.63;
 const INTERVAL_MS = 5 * 60 * 1000;
 
 const DATA_DIR = path.join(process.cwd(), "data");
