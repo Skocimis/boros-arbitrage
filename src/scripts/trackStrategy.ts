@@ -44,9 +44,9 @@ const OKX_BASE_URL = "https://www.okx.com";
 
 /** Initial balances for real PnL calculation */
 const INITIAL_BALANCES = {
-  borosEth: 0.0099478,
-  okxUsdt: 43.31,
-  hlUsdc: 48.36,
+  borosEth: 0.00954996,
+  okxUsdt: 435.49,
+  hlUsdc: 433.26,
 };
 
 // ============================================================
@@ -57,13 +57,25 @@ function getTimestamp(): string {
   return new Date().toISOString();
 }
 
-function sign(timestamp: string, method: string, path: string, body: string): string {
+function sign(
+  timestamp: string,
+  method: string,
+  path: string,
+  body: string,
+): string {
   const secretKey = process.env.OKX_SECRET_KEY!;
   const preHash = timestamp + method + path + body;
-  return crypto.createHmac("sha256", secretKey).update(preHash).digest("base64");
+  return crypto
+    .createHmac("sha256", secretKey)
+    .update(preHash)
+    .digest("base64");
 }
 
-function getAuthHeaders(method: string, path: string, body: string = ""): Record<string, string> {
+function getAuthHeaders(
+  method: string,
+  path: string,
+  body: string = "",
+): Record<string, string> {
   const timestamp = getTimestamp();
   return {
     "OK-ACCESS-KEY": process.env.OKX_API_KEY!,
@@ -161,11 +173,16 @@ async function fetchEthPrice(): Promise<FetchResult<number>> {
     }
     return { success: true, data: parseFloat(resp.data.data[0].last) };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
-async function fetchHyperliquidData(ticker: string): Promise<FetchResult<HyperliquidData>> {
+async function fetchHyperliquidData(
+  ticker: string,
+): Promise<FetchResult<HyperliquidData>> {
   const subaccountAddress = process.env.HYPERLIQUID_SUBACCOUNT;
   if (!subaccountAddress) {
     return { success: false, error: "HYPERLIQUID_SUBACCOUNT not set" };
@@ -174,12 +191,14 @@ async function fetchHyperliquidData(ticker: string): Promise<FetchResult<Hyperli
   try {
     const transport = new HttpTransport();
     const info = new InfoClient({ transport });
-    const state = await info.clearinghouseState({ user: subaccountAddress as `0x${string}` });
+    const state = await info.clearinghouseState({
+      user: subaccountAddress as `0x${string}`,
+    });
 
     const balance = parseFloat(state.crossMarginSummary.accountValue);
 
     const assetPosition = state.assetPositions.find(
-      (ap) => ap.position.coin.toUpperCase() === ticker.toUpperCase()
+      (ap) => ap.position.coin.toUpperCase() === ticker.toUpperCase(),
     );
 
     let position: HyperliquidData["position"] = null;
@@ -189,18 +208,27 @@ async function fetchHyperliquidData(ticker: string): Promise<FetchResult<Hyperli
         size: parseFloat(pos.szi),
         entryPrice: parseFloat(pos.entryPx),
         unrealizedPnl: parseFloat(pos.unrealizedPnl),
-        liquidationPrice: pos.liquidationPx ? parseFloat(pos.liquidationPx) : null,
+        liquidationPrice: pos.liquidationPx
+          ? parseFloat(pos.liquidationPx)
+          : null,
       };
     }
 
     return { success: true, data: { balance, position } };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
 async function fetchOkxData(ticker: string): Promise<FetchResult<OkxData>> {
-  if (!process.env.OKX_API_KEY || !process.env.OKX_SECRET_KEY || !process.env.OKX_API_PASSPHRASE) {
+  if (
+    !process.env.OKX_API_KEY ||
+    !process.env.OKX_SECRET_KEY ||
+    !process.env.OKX_API_PASSPHRASE
+  ) {
     return { success: false, error: "OKX credentials not set" };
   }
 
@@ -214,7 +242,7 @@ async function fetchOkxData(ticker: string): Promise<FetchResult<OkxData>> {
     let balance = 0;
     if (balanceResp.data.code === "0" && balanceResp.data.data?.[0]?.details) {
       const usdtDetail = balanceResp.data.data[0].details.find(
-        (d: { ccy: string }) => d.ccy === "USDT"
+        (d: { ccy: string }) => d.ccy === "USDT",
       );
       if (usdtDetail) {
         balance = parseFloat(usdtDetail.eq || usdtDetail.cashBal || "0");
@@ -247,11 +275,16 @@ async function fetchOkxData(ticker: string): Promise<FetchResult<OkxData>> {
 
     return { success: true, data: { balance, position } };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
-async function fetchBorosData(strategy: Strategy): Promise<FetchResult<BorosData>> {
+async function fetchBorosData(
+  strategy: Strategy,
+): Promise<FetchResult<BorosData>> {
   const privateKey = process.env.PRIVATE_KEY;
   if (!privateKey) {
     return { success: false, error: "PRIVATE_KEY not set" };
@@ -270,7 +303,9 @@ async function fetchBorosData(strategy: Strategy): Promise<FetchResult<BorosData
       account,
     });
 
-    const exchange = new Exchange(walletClient, account.address, accountId, [rpcUrl]);
+    const exchange = new Exchange(walletClient, account.address, accountId, [
+      rpcUrl,
+    ]);
 
     const collaterals = await exchange.getCollaterals({
       userAddress: account.address,
@@ -281,11 +316,12 @@ async function fetchBorosData(strategy: Strategy): Promise<FetchResult<BorosData
     let crossMarginNetBalance = 0;
     if (collaterals?.collaterals) {
       const activeCollateral = collaterals.collaterals.find(
-        (c) => c.crossPosition?.marketPositions?.length > 0
+        (c) => c.crossPosition?.marketPositions?.length > 0,
       );
       if (activeCollateral) {
         ethBalance = parseFloat(activeCollateral.totalNetBalance || "0") / 1e18;
-        crossMarginNetBalance = parseFloat(activeCollateral.crossPosition?.netBalance || "0") / 1e18;
+        crossMarginNetBalance =
+          parseFloat(activeCollateral.crossPosition?.netBalance || "0") / 1e18;
       }
     }
 
@@ -294,7 +330,7 @@ async function fetchBorosData(strategy: Strategy): Promise<FetchResult<BorosData
 
     if (collaterals?.collaterals) {
       const activeCollateral = collaterals.collaterals.find(
-        (c) => c.crossPosition?.marketPositions?.length > 0
+        (c) => c.crossPosition?.marketPositions?.length > 0,
       );
       if (activeCollateral?.crossPosition?.marketPositions) {
         for (const mp of activeCollateral.crossPosition.marketPositions) {
@@ -311,7 +347,10 @@ async function fetchBorosData(strategy: Strategy): Promise<FetchResult<BorosData
 
           if (mp.marketId === strategy.borosLongMarketId && mp.side === 0) {
             longPosition = posData;
-          } else if (mp.marketId === strategy.borosShortMarketId && mp.side === 1) {
+          } else if (
+            mp.marketId === strategy.borosShortMarketId &&
+            mp.side === 1
+          ) {
             shortPosition = posData;
           }
         }
@@ -323,7 +362,10 @@ async function fetchBorosData(strategy: Strategy): Promise<FetchResult<BorosData
       data: { ethBalance, crossMarginNetBalance, longPosition, shortPosition },
     };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : String(err) };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -336,10 +378,14 @@ async function fetchBorosData(strategy: Strategy): Promise<FetchResult<BorosData
  * @param strategyName - Name of the strategy to track
  * @returns StrategyTrackingResult with all tracking data
  */
-export async function trackStrategy(strategyName: string): Promise<StrategyTrackingResult> {
+export async function trackStrategy(
+  strategyName: string,
+): Promise<StrategyTrackingResult> {
   const strategy = getStrategy(strategyName);
   if (!strategy) {
-    throw new Error(`Strategy "${strategyName}" not found. Available: ${listStrategies().join(", ")}`);
+    throw new Error(
+      `Strategy "${strategyName}" not found. Available: ${listStrategies().join(", ")}`,
+    );
   }
 
   const errors: string[] = [];
@@ -353,52 +399,71 @@ export async function trackStrategy(strategyName: string): Promise<StrategyTrack
   ]);
 
   const ethPriceResult: FetchResult<number> =
-    results[0].status === "fulfilled" ? results[0].value : { success: false, error: "Fetch failed" };
+    results[0].status === "fulfilled"
+      ? results[0].value
+      : { success: false, error: "Fetch failed" };
   const hlData: FetchResult<HyperliquidData> =
-    results[1].status === "fulfilled" ? results[1].value : { success: false, error: "Fetch failed" };
+    results[1].status === "fulfilled"
+      ? results[1].value
+      : { success: false, error: "Fetch failed" };
   const okxData: FetchResult<OkxData> =
-    results[2].status === "fulfilled" ? results[2].value : { success: false, error: "Fetch failed" };
+    results[2].status === "fulfilled"
+      ? results[2].value
+      : { success: false, error: "Fetch failed" };
   const borosData: FetchResult<BorosData> =
-    results[3].status === "fulfilled" ? results[3].value : { success: false, error: "Fetch failed" };
+    results[3].status === "fulfilled"
+      ? results[3].value
+      : { success: false, error: "Fetch failed" };
 
-  if (!ethPriceResult.success) errors.push(`ETH price: ${ethPriceResult.error}`);
+  if (!ethPriceResult.success)
+    errors.push(`ETH price: ${ethPriceResult.error}`);
   if (!hlData.success) errors.push(`Hyperliquid: ${hlData.error}`);
   if (!okxData.success) errors.push(`OKX: ${okxData.error}`);
   if (!borosData.success) errors.push(`Boros: ${borosData.error}`);
 
-  const ethPrice = ethPriceResult.success && ethPriceResult.data ? ethPriceResult.data : 0;
+  const ethPrice =
+    ethPriceResult.success && ethPriceResult.data ? ethPriceResult.data : 0;
 
   // Calculate balances
   const hlBalance = hlData.success && hlData.data ? hlData.data.balance : 0;
   const okxBalance = okxData.success && okxData.data ? okxData.data.balance : 0;
-  const borosCrossBalance = borosData.success && borosData.data ? borosData.data.crossMarginNetBalance : 0;
+  const borosCrossBalance =
+    borosData.success && borosData.data
+      ? borosData.data.crossMarginNetBalance
+      : 0;
 
   const currentUsd = hlBalance + okxBalance;
   const currentEth = borosCrossBalance;
-  const currentTotalUsd = currentUsd + (currentEth * ethPrice);
+  const currentTotalUsd = currentUsd + currentEth * ethPrice;
 
   const initialUsd = INITIAL_BALANCES.hlUsdc + INITIAL_BALANCES.okxUsdt;
   const initialEth = INITIAL_BALANCES.borosEth;
-  const initialTotalUsd = initialUsd + (initialEth * ethPrice);
+  const initialTotalUsd = initialUsd + initialEth * ethPrice;
 
   // Real PnL
   const dUsd = currentUsd - initialUsd;
   const dEth = currentEth - initialEth;
-  const realPnlUsd = dUsd + (dEth * ethPrice);
+  const realPnlUsd = dUsd + dEth * ethPrice;
 
   return {
     strategyName,
     timestamp: new Date(),
     ethPrice,
     impliedApr: {
-      long: borosData.success && borosData.data?.longPosition?.markApr || 0,
-      short: borosData.success && borosData.data?.shortPosition?.markApr || 0,
+      long: (borosData.success && borosData.data?.longPosition?.markApr) || 0,
+      short: (borosData.success && borosData.data?.shortPosition?.markApr) || 0,
     },
     liquidations: {
-      hlShort: hlData.success && hlData.data?.position?.liquidationPrice || null,
-      okxLong: okxData.success && okxData.data?.position?.liquidationPrice || null,
-      borosLong: borosData.success && borosData.data?.longPosition?.liquidationApr || null,
-      borosShort: borosData.success && borosData.data?.shortPosition?.liquidationApr || null,
+      hlShort:
+        (hlData.success && hlData.data?.position?.liquidationPrice) || null,
+      okxLong:
+        (okxData.success && okxData.data?.position?.liquidationPrice) || null,
+      borosLong:
+        (borosData.success && borosData.data?.longPosition?.liquidationApr) ||
+        null,
+      borosShort:
+        (borosData.success && borosData.data?.shortPosition?.liquidationApr) ||
+        null,
     },
     balances: {
       initialUsd,
@@ -454,7 +519,9 @@ function displayResults(result: StrategyTrackingResult): void {
 
   // ETH Price and Implied APRs
   console.log(`ETH Price:       ${formatUsd(result.ethPrice)}`);
-  console.log(`Implied APR:     Long ${formatApr(result.impliedApr.long)} | Short ${formatApr(result.impliedApr.short)}`);
+  console.log(
+    `Implied APR:     Long ${formatApr(result.impliedApr.long)} | Short ${formatApr(result.impliedApr.short)}`,
+  );
   console.log("");
 
   // Liquidation Prices/APRs
@@ -462,15 +529,23 @@ function displayResults(result: StrategyTrackingResult): void {
   console.log(separator);
   console.log(`HL SHORT:        ${formatPrice(result.liquidations.hlShort)}`);
   console.log(`OKX LONG:        ${formatPrice(result.liquidations.okxLong)}`);
-  console.log(`Boros LONG:      ${result.liquidations.borosLong !== null ? formatApr(result.liquidations.borosLong) : "N/A"}`);
-  console.log(`Boros SHORT:     ${result.liquidations.borosShort !== null ? formatApr(result.liquidations.borosShort) : "N/A"}`);
+  console.log(
+    `Boros LONG:      ${result.liquidations.borosLong !== null ? formatApr(result.liquidations.borosLong) : "N/A"}`,
+  );
+  console.log(
+    `Boros SHORT:     ${result.liquidations.borosShort !== null ? formatApr(result.liquidations.borosShort) : "N/A"}`,
+  );
   console.log("");
 
   // Balances
   console.log("BALANCES");
   console.log(separator);
-  console.log(`Initial:         ${formatUsd(result.balances.initialUsd)} + ${formatEth(result.balances.initialEth)}`);
-  console.log(`Current:         ${formatUsd(result.balances.currentUsd)} + ${formatEth(result.balances.currentEth)}`);
+  console.log(
+    `Initial:         ${formatUsd(result.balances.initialUsd)} + ${formatEth(result.balances.initialEth)}`,
+  );
+  console.log(
+    `Current:         ${formatUsd(result.balances.currentUsd)} + ${formatEth(result.balances.currentEth)}`,
+  );
   console.log("");
   console.log(`Initial Total:   ${formatUsd(result.balances.initialTotalUsd)}`);
   console.log(`Current Total:   ${formatUsd(result.balances.currentTotalUsd)}`);
@@ -493,7 +568,9 @@ async function main() {
   const [strategyName] = process.argv.slice(2);
 
   if (!strategyName) {
-    console.error("Usage: npx tsx src/scripts/trackStrategy.ts <STRATEGY_NAME>");
+    console.error(
+      "Usage: npx tsx src/scripts/trackStrategy.ts <STRATEGY_NAME>",
+    );
     console.error(`Example: npx tsx src/scripts/trackStrategy.ts ETH27Mar`);
     console.error("");
     console.error(`Available strategies: ${listStrategies().join(", ")}`);
