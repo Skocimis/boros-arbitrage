@@ -133,6 +133,11 @@ async function runTracking(): Promise<void> {
   }
 }
 
+async function runner(){
+  await runTracking();
+  setTimeout(runner, INTERVAL_MS);
+}
+
 /**
  * Main function - starts the tracking loop
  */
@@ -148,11 +153,7 @@ async function main(): Promise<void> {
   // Ensure CSV exists
   ensureCsvExists();
 
-  // Run immediately on start
-  await runTracking();
-
-  // Schedule periodic runs
-  setInterval(runTracking, INTERVAL_MS);
+  runner();
 
   console.log(`\nTracker running. Press Ctrl+C to stop.`);
 }
