@@ -39,6 +39,23 @@ def load_data(csv_path: Path) -> pd.DataFrame:
     return df
 
 
+def average_groups(df: pd.DataFrame, group_size: int = 6) -> pd.DataFrame:
+    """Average every `group_size` rows, discarding highest and lowest values."""
+    rows = []
+    for start in range(0, len(df), group_size):
+        chunk = df.iloc[start:start + group_size]
+        values = chunk['realPnlUsd'].sort_values()
+        if len(values) > 2:
+            trimmed = values.iloc[1:-1]
+        else:
+            trimmed = values
+        avg_pnl = trimmed.mean()
+        ts = chunk['timestamp'].iloc[-1]
+        rows.append({'timestamp': ts, 'realPnlUsd': avg_pnl})
+
+    return pd.DataFrame(rows)
+
+
 def plot_pnl(df: pd.DataFrame, output_path: Path | None = None) -> None:
     """Create PnL visualization."""
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -141,6 +158,9 @@ def main():
     df = load_data(args.csv)
     print(f"Loaded {len(df)} data points")
     print(f"Time range: {df['timestamp'].min()} to {df['timestamp'].max()}")
+
+    df = average_groups(df, group_size=6)
+    print(f"Averaged to {len(df)} points (weighted avg per 6)")
 
     plot_pnl(df, args.output)
 
