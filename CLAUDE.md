@@ -177,6 +177,62 @@ npm run typecheck      # Type-check without emitting
 - **Rate limiting delays:** 100ms between market detail fetches, 50ms between candle chunks, 200ms between markets for candle operations.
 - **Separate `package.json`** — the indexer has its own dependencies (`express`, `mongodb`). Run `npm install` inside `boros-indexer/` before use.
 
+## Historical Frontend (`historical-frontend/`)
+
+React SPA for comparing historical implied APR between two Boros markets. Users pick two markets from dropdowns, the app validates they share the same underlying asset and have overlapping date ranges, then loads and charts candle data side-by-side.
+
+### Commands
+
+```bash
+cd historical-frontend
+npm run dev            # Vite dev server (default port 5173)
+npm run build          # tsc -b && vite build (production bundle)
+npm run preview        # Serve production build locally
+npm run lint           # ESLint
+```
+
+### Prerequisites
+
+- **boros-indexer running on port 3001** — the frontend fetches market data via a Vite dev-server proxy (`/indexer` -> `localhost:3001`). Without the indexer, market dropdowns will fail to load.
+
+### Architecture
+
+Market data flows from the boros-indexer (MongoDB) through the Vite proxy into the React app. Chart candle data is fetched directly from the Boros API (`api.boros.finance`).
+
+```
+boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros chart API
+       │                              │
+   /get-markets               /indexer/get-markets
+                              (rewritten to /)
+```
+
+| Path | Purpose |
+|------|---------|
+| `src/App.tsx` | Root component: market state, validation logic (asset match, startTime, date overlap) |
+| `src/api.ts` | `fetchAllMarkets()` via indexer proxy, `fetchChartData()` via Boros chart API, `fetchMarketDetail()` |
+| `src/types.ts` | `Market`, `Candle`, `AlignedDataPoint` interfaces |
+| `src/components/MarketSelector.tsx` | Two dropdowns (sorted by marketId desc) + Load button; shows start date per market |
+| `src/components/ErrorDisplay.tsx` | Conditional error banner |
+| `src/components/LoadingSpinner.tsx` | Spinner with optional message |
+| `vite.config.ts` | React plugin + `/indexer` proxy to `localhost:3001` |
+
+### Data Flow
+
+1. On mount, `fetchAllMarkets()` calls `/indexer/get-markets` (proxied to the boros-indexer). Returns full `Market[]` with `startTime`.
+2. User selects two markets. On "Load":
+   - Validates same `metadata.assetSymbol` (falls back to `metadata.name`).
+   - Validates both markets have non-null `startTime` (i.e., candle data exists).
+   - Validates date ranges `[startTime, maturity]` overlap between the two markets.
+3. If validation passes, chart candle data is fetched directly from `api.boros.finance` in 150,000-second chunks (same pagination as the indexer).
+
+### Conventions and Gotchas
+
+- **Vite proxy for CORS** — the indexer has no CORS headers. The `/indexer` prefix is stripped by the proxy rewrite rule, so `/indexer/get-markets` becomes `GET /get-markets` on port 3001. This only works in dev mode; a production deployment needs its own proxy or CORS configuration.
+- **No axios** — the frontend uses native `fetch` throughout. No HTTP client dependency.
+- **Separate `package.json`** — the frontend has its own dependencies (React 19, Vite 7). Run `npm install` inside `historical-frontend/` before use.
+- **`startTime` field** — returned by the indexer as a Unix timestamp (seconds) or `null` if no candles exist. Displayed in dropdowns as a formatted date.
+- **Asset matching** uses `metadata.assetSymbol` (e.g., `"ETH"`), not `metadata.name` (e.g., `"ETHUSDT"`). Falls back to `metadata.name` when `assetSymbol` is undefined.
+
 ## Tech Stack
 
 - **Runtime**: Node.js >= 22, ES Modules (`"type": "module"`)
@@ -185,6 +241,7 @@ npm run typecheck      # Type-check without emitting
 - **Module resolution**: `NodeNext` — use `.js` extensions in import paths
 - **Key deps**: `@pendle/sdk-boros`, `@pendle/boros-offchain-math`, `@nktkas/hyperliquid`, `viem` (wallet/signing), `axios`
 - **Exchange auth**: HMAC-SHA256 for OKX and Binance REST APIs; viem `privateKeyToAccount` for Hyperliquid/Boros signing
+- **Historical frontend**: React 19, Vite 7, TypeScript ~5.9. No external HTTP client (native `fetch`). Separate `package.json` in `historical-frontend/`
 
 ## Environment
 
