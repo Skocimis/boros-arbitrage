@@ -113,6 +113,70 @@ Legs 2 + 4 also provide delta-neutrality on the underlying asset price.
 **Subaccount signing (Hyperliquid):**
 - Master account (`PRIVATE_KEY`) signs all transactions with the `vaultAddress` parameter set to `HYPERLIQUID_SUBACCOUNT`. Positions and margin live on the subaccount.
 
+## Boros Indexer (`boros-indexer/`)
+
+Standalone service that indexes all Boros markets and their 5-minute candle data into MongoDB, keeps data fresh with hourly updates, and exposes a REST API.
+
+### Commands
+
+```bash
+cd boros-indexer
+npm run dev            # Run with tsx (development)
+npm run build          # TypeScript compilation
+npm run start          # Run compiled output
+npm run typecheck      # Type-check without emitting
+```
+
+### Prerequisites
+
+- MongoDB running locally on `mongodb://localhost:27017` (override with `MONGO_URI` env var)
+- Port 3001 available (override with `PORT` env var)
+
+### REST API
+
+- `GET /get-markets` — returns all market documents sorted by `marketId`, with `startTime` (earliest candle timestamp). Excludes internal fields (`_id`, `lastCandleTs`, `lastUpdatedAt`). No candle data in response.
+
+### Architecture
+
+| Path | Purpose |
+|------|---------|
+| `src/index.ts` | Entry point: connect DB, initial sync, start server + scheduler |
+| `src/server.ts` | Express server with `GET /get-markets` |
+| `src/config.ts` | Constants: URLs, DB name, delays, port, lookback |
+| `src/types.ts` | TypeScript interfaces (BorosMarket, Candle, DB documents) |
+| `src/db/connection.ts` | MongoDB client singleton |
+| `src/db/collections.ts` | Typed collection accessors + index creation |
+| `src/api/borosClient.ts` | Boros API: market list, market detail, chunked candle fetching |
+| `src/indexer/marketIndexer.ts` | Market discovery: paginate list, iterate 1..maxId, fetch details |
+| `src/indexer/candleIndexer.ts` | Candle backfill (full history) and incremental updates |
+| `src/indexer/scheduler.ts` | Hourly `setInterval` coordinator |
+| `src/util/retry.ts` | Generic retry with exponential backoff (3 attempts, 1s/2s/4s) |
+| `src/util/sleep.ts` | Sleep helper |
+| `src/util/logger.ts` | Timestamped console logger |
+
+### MongoDB Collections
+
+- **`markets`** — one doc per market. Full `GET /v1/markets/{id}` response plus `startTime`, `lastCandleTs`, `lastUpdatedAt`. Indexes: `{ marketId: 1 }` unique, `{ metadata.platformName: 1, metadata.name: 1 }`.
+- **`candles`** — one doc per candle per market. All chart API fields (`ts`, `o`, `h`, `l`, `c`, `v`, `u`, `mr`, `ofr`, `b7dmafr`, `b30dmafr`, `fp`) plus `marketId`. Indexes: `{ marketId: 1, ts: 1 }` unique, `{ marketId: 1, ts: -1 }`.
+
+### Startup Sequence
+
+1. Connect MongoDB, ensure indexes
+2. Discover markets via paginated `GET /v1/markets?isWhitelisted=true`, compute maxId
+3. Fetch details for each market 1..maxId (100ms delay, 404s skipped), upsert to DB
+4. Backfill candles for each market: initial run scans from 1 year ago in 150,000s chunks (50ms between chunks, 200ms between markets), skipping empty chunks until data is found
+5. Start Express server on port 3001
+6. Start hourly scheduler (re-indexes markets + incremental candle updates)
+
+### Conventions and Gotchas
+
+- **Boros chart API returns max ~500 candles per request.** Fetching uses 150,000-second chunks (500 × 5min) and pages through by advancing the cursor to `lastCandle.ts + 300`.
+- **Empty chunk handling:** Before data is found, empty chunks advance the cursor forward (scanning). After data is found, an empty chunk means end-of-data and breaks the loop.
+- **Initial backfill lookback** is 1 year (`INITIAL_LOOKBACK` in config). This covers all possible market history.
+- **All DB writes are upserts** — restarts are safe and idempotent.
+- **Rate limiting delays:** 100ms between market detail fetches, 50ms between candle chunks, 200ms between markets for candle operations.
+- **Separate `package.json`** — the indexer has its own dependencies (`express`, `mongodb`). Run `npm install` inside `boros-indexer/` before use.
+
 ## Tech Stack
 
 - **Runtime**: Node.js >= 22, ES Modules (`"type": "module"`)
