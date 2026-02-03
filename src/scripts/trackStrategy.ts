@@ -315,13 +315,16 @@ async function fetchBorosData(
     let ethBalance = 0;
     let crossMarginNetBalance = 0;
     if (collaterals?.collaterals) {
-      const activeCollateral = collaterals.collaterals.find(
-        (c) => c.crossPosition?.marketPositions?.length > 0,
+      // Find collateral with balance — don't require active positions
+      const collateral = collaterals.collaterals.find(
+        (c) =>
+          parseFloat(c.totalNetBalance || "0") !== 0 ||
+          c.crossPosition?.marketPositions?.length > 0,
       );
-      if (activeCollateral) {
-        ethBalance = parseFloat(activeCollateral.totalNetBalance || "0") / 1e18;
+      if (collateral) {
+        ethBalance = parseFloat(collateral.totalNetBalance || "0") / 1e18;
         crossMarginNetBalance =
-          parseFloat(activeCollateral.crossPosition?.netBalance || "0") / 1e18;
+          parseFloat(collateral.crossPosition?.netBalance || "0") / 1e18;
       }
     }
 
@@ -329,11 +332,9 @@ async function fetchBorosData(
     let shortPosition: BorosPositionData | null = null;
 
     if (collaterals?.collaterals) {
-      const activeCollateral = collaterals.collaterals.find(
-        (c) => c.crossPosition?.marketPositions?.length > 0,
-      );
-      if (activeCollateral?.crossPosition?.marketPositions) {
-        for (const mp of activeCollateral.crossPosition.marketPositions) {
+      for (const collateral of collaterals.collaterals) {
+        if (!collateral.crossPosition?.marketPositions) continue;
+        for (const mp of collateral.crossPosition.marketPositions) {
           const size = parseFloat(mp.notionalSize || "0");
           if (size === 0) continue;
 
