@@ -29,6 +29,7 @@ npx tsx src/scripts/borosTrade.ts <SIDE> <MARKET_ID> <SIZE>
 npx tsx src/scripts/hyperliquidShort.ts <TICKER> <SIZE>
 npx tsx src/scripts/okxLong.ts <TICKER> <SIZE>
 npx tsx src/scripts/setHyperliquidLeverage.ts <TICKER> <LEVERAGE>
+npx tsx src/scripts/okxMakerHlTaker.ts <STRATEGY>
 npx tsx src/market-inspector.ts <MARKET_ID> ...
 ```
 
@@ -51,7 +52,7 @@ Legs 2 + 4 also provide delta-neutrality on the underlying asset price.
 
 - **Opportunity layer** (`src/arbitrage-scanner.ts`, `src/arbitrage-monitor.ts`): Fetches all Boros markets, identifies same-asset pairs across exchanges, calculates Implied APR spreads and TSI (Total Slippage Impact) at various sizes.
 - **Strategy config** (`src/config/strategies.ts`): Defines strategies mapping a name to Boros market IDs, exchange selections (HL/OKX), and ticker. Add new strategies to the `STRATEGIES` record.
-- **Execution scripts** (`src/scripts/`): Single-purpose CLI tools. `openPosition.ts` coordinates all 4 legs in parallel via `Promise.all()`. Exchange-specific scripts handle individual legs.
+- **Execution scripts** (`src/scripts/`): Single-purpose CLI tools. `openPosition.ts` coordinates all 4 legs in parallel via `Promise.all()`. `okxMakerHlTaker.ts` runs a maker/taker workflow: monitors OKX limit order fills and automatically fires the remaining 3 taker legs (HL perp + 2 Boros YU) on each new fill. Exchange-specific scripts handle individual legs.
 - **DEX client abstraction** (`src/lib/DexClient.ts`): Abstract base class with `getBalance()`, `order()`, `getFunding()`. `BinanceClient` is partially implemented; `HyperliquidClient` is a skeleton. Full Hyperliquid trading uses `@nktkas/hyperliquid` SDK directly in scripts.
 - **Boros API helpers** (`lib/functions/`): Typed HTTP wrappers for market and order book endpoints.
 - **Tracking** (`src/strategy-tracker.ts`, `src/scripts/trackStrategy.ts`): Fetches balances/positions from all venues, calculates real PnL, logs to `data/pnl.csv`.
@@ -78,11 +79,31 @@ Legs 2 + 4 also provide delta-neutrality on the underlying asset price.
 | `src/scripts/borosTrade.ts` | Open a long or short YU position on Boros |
 | `src/scripts/hyperliquidShort.ts` | Open a short perp position on Hyperliquid |
 | `src/scripts/okxLong.ts` | Open a long perp position on OKX |
+| `src/scripts/okxMakerHlTaker.ts` | OKX maker + HL/Boros taker: monitors OKX fills, auto-hedges with 3 taker legs |
 | `src/scripts/setHyperliquidLeverage.ts` | Set leverage for an asset on Hyperliquid |
 | `lib/functions/getMarketById.ts` | Boros API: fetch market by ID with full type definitions |
 | `lib/functions/getOrderBookByMarketId.ts` | Boros API: fetch order book (parallel arrays: `ia[]`, `sz[]`) |
 | `helpers/visualize-pnl.py` | Chart PnL history from `data/pnl.csv` |
 | `helpers/visualize-opportunities.py` | Chart APY history from `data/opportunities.csv` |
+
+### Boros REST API Reference
+
+Base URL: `https://api.boros.finance/core` — Swagger docs: `https://api.boros.finance/core/docs`
+
+All read endpoints are public (no API key needed).
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/v1/markets?skip={n}&limit={n}&isWhitelisted=true` | GET | Paginated market list (limit max 100). Response: `{ results: Market[], total, skip }` |
+| `/v1/markets/{marketId}` | GET | Full market detail: `imData`, `config`, `extConfig`, `metadata`, `data` (live stats), `platform`, `state` |
+| `/v1/markets/chart?marketId={id}&timeFrame=5m&startTimestamp={s}&endTimestamp={e}` | GET | OHLCV candles. Response: `{ results: Candle[] }`. Max ~500 per request; paginate in 150,000s chunks |
+| `/v1/markets/market-trades?marketId={id}&skip={n}&limit={n}` | GET | Recent trades. Response: `{ results: [{ size, rate, txHash, blockTimestamp }], total, skip }` |
+| `/v1/order-books/{marketId}?tickSize={t}` | GET | Order book depth. Tick sizes: `0.00001`–`0.1`. Response: `{ long: { ia[], sz[] }, short: { ia[], sz[] } }` |
+
+**Key response fields:**
+- **Market**: `marketId`, `imData.maturity` (Unix s), `imData.tickStep`, `metadata.name` (pair e.g. `"ETHUSDT"`), `metadata.assetSymbol` (e.g. `"ETH"`), `metadata.platformName`, `data.markApr`, `data.floatingApr`, `data.assetMarkPrice`, `state`
+- **Candle**: `ts` (Unix s), `o`/`h`/`l`/`c` (decimal APR), `v` (volume), `u` (underlying rate), `mr` (mark rate), `ofr` (oracle funding rate), `b7dmafr`/`b30dmafr` (moving averages), `fp` (funding payment)
+- **Order book**: `ia[]` values in basis points (divide by 10,000 for decimal APR, or by 100,000 per the raw tick format); `sz[]` in wei (divide by 1e18)
 
 ### Conventions and Gotchas
 
@@ -99,6 +120,7 @@ Legs 2 + 4 also provide delta-neutrality on the underlying asset price.
 **Size units — not uniform across scripts:**
 - `getAPY.ts`, `openPosition.ts`, `hyperliquidShort.ts`, `okxLong.ts`: size in **asset units** (e.g., 0.01 = 0.01 ETH).
 - `borosTrade.ts`: size in **YU notional ($)** (e.g., 1000 = $1000 collateral).
+- `okxMakerHlTaker.ts`: no size argument — sizes are derived from OKX fills. Asset size = `fillSz * ctVal` (contracts × contract value) for HL; Boros notional = `assetSize * fillPx` for Boros.
 
 **Funding rate annualization:**
 - Binance: `rate * 3 * 365` (8h intervals).
@@ -107,6 +129,7 @@ Legs 2 + 4 also provide delta-neutrality on the underlying asset price.
 **Execution details:**
 - Slippage buffers: 0.5% (Hyperliquid), 0.6% absolute (Boros) with IOC orders.
 - `openPosition.ts` fires all 4 legs via `Promise.all()` — no rollback on partial failure.
+- `okxMakerHlTaker.ts` polls OKX every 3s. First poll seeds `seenTradeIds` without hedging. Subsequent polls detect new fills by `tradeId` and fire 3 taker legs in parallel. Boros agent is created once at startup and reused. OKX BUY → Boros OKX LONG + HL SHORT + Boros HL SHORT; OKX SELL → reverse.
 - Hardcoded asset prices in `arbitrage-monitor.ts`: BTC=$100k, ETH=$3k, BNB=$1k (used for USD size conversion in TSI calculations).
 - Strategy name `"ETH27Mar"` is hardcoded in `strategy-tracker.ts` and `opportunity-tracker.ts`.
 
@@ -213,7 +236,11 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 | `src/types.ts` | `Market`, `Candle`, `AlignedDataPoint` interfaces |
 | `src/components/MarketSelector.tsx` | Two dropdowns (sorted by marketId desc) + Load button; shows start date per market |
 | `src/components/ErrorDisplay.tsx` | Conditional error banner |
+| `src/components/ChartView.tsx` | Interactive APR chart with `lightweight-charts`; overlay legend with hover values, resolution switching (5m/30m/3h), leverage series |
+| `src/components/MarketData.tsx` | Sidebar cards showing platform, state, maturity, leverage, APR, price, volume for each selected market |
+| `src/components/LeveragePanel.tsx` | Sidebar panel: add/remove leverage multipliers, displays leveraged APY from average spread |
 | `src/components/LoadingSpinner.tsx` | Spinner with optional message |
+| `src/leverageColors.ts` | Shared color palette and `leverageColor()` helper for leverage series |
 | `vite.config.ts` | React plugin + `/indexer` proxy to `localhost:3001` |
 
 ### Data Flow
@@ -224,6 +251,8 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
    - Validates both markets have non-null `startTime` (i.e., candle data exists).
    - Validates date ranges `[startTime, maturity]` overlap between the two markets.
 3. If validation passes, chart candle data is fetched directly from `api.boros.finance` in 150,000-second chunks (same pagination as the indexer).
+4. `App.tsx` aligns candles by timestamp (inner join via `Map`), producing `AlignedDataPoint[]` with `|apr1 - apr2|` spread.
+5. `ChartView` renders 3 core line series (market 1 APR, market 2 APR, absolute spread) plus configurable leverage series (`spread × leverage / 2`). Chart overlay shows checkboxes and hover values. Resolution switching (5m → 30m → 3h via downsampling) and leverage add/remove preserve the visible time range.
 
 ### Conventions and Gotchas
 
@@ -232,6 +261,11 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 - **Separate `package.json`** — the frontend has its own dependencies (React 19, Vite 7). Run `npm install` inside `historical-frontend/` before use.
 - **`startTime` field** — returned by the indexer as a Unix timestamp (seconds) or `null` if no candles exist. Displayed in dropdowns as a formatted date.
 - **Asset matching** uses `metadata.assetSymbol` (e.g., `"ETH"`), not `metadata.name` (e.g., `"ETHUSDT"`). Falls back to `metadata.name` when `assetSymbol` is undefined.
+- **`lightweight-charts` v5 API** — uses `chart.addSeries(LineSeries, options)` (not v4's `addLineSeries()`). Series removal via `chart.removeSeries(series)`.
+- **Chart view preservation** — adding/removing leverage series and switching resolution save and restore the visible time range via `getVisibleRange()` / `setVisibleRange()`. Only initial data load calls `fitContent()`.
+- **Platform colors** — Hyperliquid `#2dd4bf`, OKX `#d1d5db`, Spread `#2962ff`. Determined by `metadata.platformName`.
+- **Leveraged APY formula** — `spread × leverage / 2`. Leverage series and APY display both use this.
+- **Chart effects architecture** — three separate `useEffect` hooks: (1) core chart + 3 series (depends on data/markets), (2) leverage series lifecycle (depends on leverages), (3) resolution switching (depends on activeRes). This separation prevents chart recreation on leverage or resolution changes.
 
 ## Tech Stack
 
@@ -241,7 +275,7 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 - **Module resolution**: `NodeNext` — use `.js` extensions in import paths
 - **Key deps**: `@pendle/sdk-boros`, `@pendle/boros-offchain-math`, `@nktkas/hyperliquid`, `viem` (wallet/signing), `axios`
 - **Exchange auth**: HMAC-SHA256 for OKX and Binance REST APIs; viem `privateKeyToAccount` for Hyperliquid/Boros signing
-- **Historical frontend**: React 19, Vite 7, TypeScript ~5.9. No external HTTP client (native `fetch`). Separate `package.json` in `historical-frontend/`
+- **Historical frontend**: React 19, Vite 7, lightweight-charts 5, TypeScript ~5.9. No external HTTP client (native `fetch`). Separate `package.json` in `historical-frontend/`
 
 ## Environment
 

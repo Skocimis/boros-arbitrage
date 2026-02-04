@@ -37,6 +37,7 @@ export async function fetchChartData(
     });
 
     const res = await fetch(`${BOROS_URL}/v1/markets/chart?${params}`);
+    if (res.status === 400) break; // range past available data
     if (!res.ok) throw new Error(`Chart API: ${res.status}`);
     const data: ChartResponse = await res.json();
 
