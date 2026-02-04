@@ -45,6 +45,7 @@ const ASSET_PRICES: Record<string, number> = {
   BTC: 100000,
   ETH: 3000,
   BNB: 1000,
+  XAU: 5000
 };
 
 interface BorosMarket {
