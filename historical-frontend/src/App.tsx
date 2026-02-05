@@ -21,6 +21,9 @@ function App() {
   const [market2, setMarket2] = useState<Market | null>(null);
   const [leverages, setLeverages] = useState<number[]>([4]);
   const [hiddenLeverages, setHiddenLeverages] = useState<number[]>([]);
+  const [daysHeld, setDaysHeld] = useState<number | null>(null);
+  const [size, setSize] = useState<number>(1);
+  const [fees, setFees] = useState<number>(0);
 
   useEffect(() => {
     fetchAllMarkets()
@@ -155,6 +158,9 @@ function App() {
             leverages={leverages}
             hiddenLeverages={hiddenLeverages}
             onToggleLeverage={handleToggleLeverage}
+            size={size}
+            daysHeld={daysHeld}
+            fees={fees}
           />
           <div className="sidebar">
             <MarketData market1={market1} market2={market2} />
@@ -162,6 +168,14 @@ function App() {
               leverages={leverages}
               onLeveragesChange={handleLeveragesChange}
               data={chartData}
+              daysHeld={daysHeld}
+              onDaysHeldChange={setDaysHeld}
+              size={size}
+              onSizeChange={setSize}
+              fees={fees}
+              onFeesChange={setFees}
+              minMaturity={Math.min(market1.imData.maturity, market2.imData.maturity)}
+              maxStartTime={Math.max(market1.startTime ?? 0, market2.startTime ?? 0)}
             />
           </div>
         </div>

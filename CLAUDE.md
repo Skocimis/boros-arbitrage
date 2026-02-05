@@ -202,7 +202,7 @@ npm run typecheck      # Type-check without emitting
 
 ## Historical Frontend (`historical-frontend/`)
 
-React SPA for comparing historical implied APR between two Boros markets. Users pick two markets from dropdowns, the app validates they share the same underlying asset and have overlapping date ranges, then loads and charts candle data side-by-side.
+React SPA for analyzing historical arbitrage opportunities between two Boros markets. Users pick two markets from dropdowns, the app validates they share the same underlying asset and have overlapping date ranges, then loads candle data and displays implied APRs, spread, and configurable leverage-based profit/ROI projections.
 
 ### Commands
 
@@ -236,9 +236,9 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 | `src/types.ts` | `Market`, `Candle`, `AlignedDataPoint` interfaces |
 | `src/components/MarketSelector.tsx` | Two dropdowns (sorted by marketId desc) + Load button; shows start date per market |
 | `src/components/ErrorDisplay.tsx` | Conditional error banner |
-| `src/components/ChartView.tsx` | Interactive APR chart with `lightweight-charts`; overlay legend with hover values, resolution switching (5m/30m/3h), leverage series |
+| `src/components/ChartView.tsx` | Unified chart with `lightweight-charts`: Boros overlay (market APRs + spread) and leverage overlays (profit metrics), resolution switching (5m/30m/3h) |
 | `src/components/MarketData.tsx` | Sidebar cards showing platform, state, maturity, leverage, APR, price, volume for each selected market |
-| `src/components/LeveragePanel.tsx` | Sidebar panel: add/remove leverage multipliers, displays leveraged APY from average spread |
+| `src/components/LeveragePanel.tsx` | Sidebar panel: leverage add/remove, Days held (slider + textbox), Size input, Fees input, Annualized ROI display |
 | `src/components/LoadingSpinner.tsx` | Spinner with optional message |
 | `src/leverageColors.ts` | Shared color palette and `leverageColor()` helper for leverage series |
 | `vite.config.ts` | React plugin + `/indexer` proxy to `localhost:3001` |
@@ -252,7 +252,11 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
    - Validates date ranges `[startTime, maturity]` overlap between the two markets.
 3. If validation passes, chart candle data is fetched directly from `api.boros.finance` in 150,000-second chunks (same pagination as the indexer).
 4. `App.tsx` aligns candles by timestamp (inner join via `Map`), producing `AlignedDataPoint[]` with `|apr1 - apr2|` spread.
-5. `ChartView` renders 3 core line series (market 1 APR, market 2 APR, absolute spread) plus configurable leverage series (`spread × leverage / 2`). Chart overlay shows checkboxes and hover values. Resolution switching (5m → 30m → 3h via downsampling) and leverage add/remove preserve the visible time range.
+5. `ChartView` renders a unified chart with:
+   - 3 core line series: market 1 APR, market 2 APR, absolute spread
+   - Configurable leverage series showing annualized ROI at each point in time
+   - Horizontal overlay cards: one "Boros" card (toggle APR lines), plus one card per leverage (Collateral, Total Profit, Annualized APY — values update on hover)
+   - Resolution switching (5m → 30m → 3h via downsampling) preserves visible time range
 
 ### Conventions and Gotchas
 
@@ -263,9 +267,15 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 - **Asset matching** uses `metadata.assetSymbol` (e.g., `"ETH"`), not `metadata.name` (e.g., `"ETHUSDT"`). Falls back to `metadata.name` when `assetSymbol` is undefined.
 - **`lightweight-charts` v5 API** — uses `chart.addSeries(LineSeries, options)` (not v4's `addLineSeries()`). Series removal via `chart.removeSeries(series)`.
 - **Chart view preservation** — adding/removing leverage series and switching resolution save and restore the visible time range via `getVisibleRange()` / `setVisibleRange()`. Only initial data load calls `fitContent()`.
-- **Platform colors** — Hyperliquid `#2dd4bf`, OKX `#d1d5db`, Spread `#2962ff`. Determined by `metadata.platformName`.
-- **Leveraged APY formula** — `spread × leverage / 2`. Leverage series and APY display both use this.
-- **Chart effects architecture** — three separate `useEffect` hooks: (1) core chart + 3 series (depends on data/markets), (2) leverage series lifecycle (depends on leverages), (3) resolution switching (depends on activeRes). This separation prevents chart recreation on leverage or resolution changes.
+- **Platform colors** — Hyperliquid `#2dd4bf`, OKX `#d1d5db`, Spread `#2962ff`. Determined by `metadata.platformName`. Leverage series use a rotating palette from `leverageColors.ts`.
+- **Profit/ROI formulas** — Configurable inputs: Size, Days held, Fees. Formulas:
+  - `Profit = held_days / 365 * spread * size - fees`
+  - `Collateral = 2 * size / leverage`
+  - `Annualized APY = (Profit / Collateral) * (365 / held_days) * 100`
+  - `held_days = min(days_remaining_to_maturity, user_days_held_input)`
+  - `max_days = floor((min(maturity1, maturity2) - max(startTime1, startTime2)) / 86400)`
+- **Overlay cards** — displayed horizontally (side by side). Boros card toggles APR series visibility. Leverage cards show profit metrics that update reactively on crosshair hover (using hovered spread, falling back to average spread when not hovering).
+- **Chart effects architecture** — six separate `useEffect` hooks: (1) core chart + 3 series (depends on data/markets), (2) leverage series lifecycle (depends on leverages), (3) resolution switching (depends on activeRes), (4) leverage visibility toggle (depends on hiddenLeverages), (5) Boros series visibility toggle (depends on showBoros/show1/show2/showSpread), (6) leverage data update (depends on size/daysHeld/fees). This separation prevents chart recreation on parameter changes.
 
 ## Tech Stack
 

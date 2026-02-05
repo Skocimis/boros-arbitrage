@@ -10,6 +10,9 @@ interface ChartViewProps {
   leverages: number[];
   hiddenLeverages: number[];
   onToggleLeverage: (lev: number) => void;
+  size: number;
+  daysHeld: number | null;
+  fees: number;
 }
 
 interface HoverValues {
@@ -22,8 +25,6 @@ interface HoverValues {
 type Resolution = '5m' | '30m' | '3h';
 
 const RESOLUTIONS: Resolution[] = ['5m', '30m', '3h'];
-
-const MIN_BAR_SPACING: Record<Resolution, number> = { '5m': 1, '30m': 0.5, '3h': 0.2 };
 
 function downsample(data: AlignedDataPoint[], factor: number): AlignedDataPoint[] {
   const result: AlignedDataPoint[] = [];
@@ -53,7 +54,7 @@ function platformColor(market: Market): string {
   return '#8b949e';
 }
 
-export default function ChartView({ data, market1, market2, leverages, hiddenLeverages, onToggleLeverage }: ChartViewProps) {
+export default function ChartView({ data, market1, market2, leverages, hiddenLeverages, onToggleLeverage, size, daysHeld, fees }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<{
@@ -65,7 +66,14 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
   const hiddenLevRef = useRef(hiddenLeverages);
   hiddenLevRef.current = hiddenLeverages;
   const activeResRef = useRef<Resolution>('5m');
+  const sizeRef = useRef(size);
+  sizeRef.current = size;
+  const daysHeldRef = useRef(daysHeld);
+  daysHeldRef.current = daysHeld;
+  const feesRef = useRef(fees);
+  feesRef.current = fees;
 
+  const [showBoros, setShowBoros] = useState(true);
   const [show1, setShow1] = useState(true);
   const [show2, setShow2] = useState(true);
   const [showSpread, setShowSpread] = useState(true);
@@ -76,13 +84,31 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
   const color2 = platformColor(market2);
   const spreadColor = '#2962ff';
 
+  const minMaturity = Math.min(market1.imData.maturity, market2.imData.maturity);
+  const maxStartTime = Math.max(market1.startTime ?? 0, market2.startTime ?? 0);
+
+  const maxDays = useMemo(() => {
+    if (minMaturity <= maxStartTime) return 0;
+    return Math.floor((minMaturity - maxStartTime) / 86400);
+  }, [minMaturity, maxStartTime]);
+
+  const profitVal = (lev: number, ts: number, spread: number, sz: number, fee: number) => {
+    const daysRemaining = Math.max(0, (minMaturity - ts) / 86400);
+    const effDays = daysHeldRef.current ?? maxDays;
+    const heldDays = Math.min(daysRemaining, effDays);
+    if (heldDays <= 0) return 0;
+    const profit = heldDays / 365 * spread * sz - fee;
+    const collateral = 2 * sz / lev;
+    return (profit / collateral) * (365 / heldDays) * 100;
+  };
+
   const levels = useMemo(() => ({
     '5m': data,
     '30m': downsample(data, 6),
     '3h': downsample(data, 36),
   }), [data]);
 
-  // Create chart + core series (no leverage series here)
+  // Create chart + all series
   useEffect(() => {
     const container = containerRef.current;
     if (!container || data.length === 0) return;
@@ -107,7 +133,6 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
       timeScale: {
         borderColor: '#30363d',
         timeVisible: true,
-        minBarSpacing: MIN_BAR_SPACING['5m'],
       },
     });
 
@@ -213,7 +238,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
           priceFormat: { type: 'custom', formatter: fmt },
           visible: !hiddenLevRef.current.includes(lev),
         });
-        ls.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.diff * 100 * lev / 2 })));
+        ls.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: profitVal(lev, p.timestamp, p.diff, sizeRef.current, feesRef.current) })));
         currentMap.set(lev, ls);
       }
     }
@@ -236,16 +261,15 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
 
     activeResRef.current = activeRes;
     const range = chart.timeScale().getVisibleRange();
-
     const d = levels[activeRes];
+
     s1.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.apr1 * 100 })));
     s2.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.apr2 * 100 })));
     spread.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.diff * 100 })));
     for (const [lev, ls] of levSeriesRef.current) {
-      ls.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.diff * 100 * lev / 2 })));
+      ls.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: profitVal(lev, p.timestamp, p.diff, sizeRef.current, feesRef.current) })));
     }
 
-    chart.applyOptions({ timeScale: { minBarSpacing: MIN_BAR_SPACING[activeRes] } });
     if (range) {
       chart.timeScale().setVisibleRange(range);
     }
@@ -258,22 +282,35 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     }
   }, [hiddenLeverages]);
 
+  // Toggle Boros series visibility
   useEffect(() => {
-    seriesRef.current.s1?.applyOptions({ visible: show1 });
-  }, [show1]);
+    seriesRef.current.s1?.applyOptions({ visible: showBoros && show1 });
+    seriesRef.current.s2?.applyOptions({ visible: showBoros && show2 });
+    seriesRef.current.spread?.applyOptions({ visible: showBoros && showSpread });
+  }, [showBoros, show1, show2, showSpread]);
 
+  // Update leverage series when size, daysHeld, or fees change
   useEffect(() => {
-    seriesRef.current.s2?.applyOptions({ visible: show2 });
-  }, [show2]);
+    const chart = chartRef.current;
+    if (!chart) return;
 
-  useEffect(() => {
-    seriesRef.current.spread?.applyOptions({ visible: showSpread });
-  }, [showSpread]);
+    const d = levels[activeResRef.current];
+    const effDays = daysHeld ?? maxDays;
+
+    for (const [lev, ls] of levSeriesRef.current) {
+      ls.setData(d.map((p) => {
+        const daysRemaining = Math.max(0, (minMaturity - p.timestamp) / 86400);
+        const heldDays = Math.min(daysRemaining, effDays);
+        if (heldDays <= 0) return { time: p.timestamp as UTCTimestamp, value: 0 };
+        const profit = heldDays / 365 * p.diff * size - fees;
+        const collateral = 2 * size / lev;
+        return { time: p.timestamp as UTCTimestamp, value: (profit / collateral) * (365 / heldDays) * 100 };
+      }));
+    }
+  }, [daysHeld, levels, maxDays, minMaturity, size, fees]);
 
   const spreadValues = data.map((d) => d.diff * 100);
-  const minSpread = Math.min(...spreadValues);
-  const maxSpread = Math.max(...spreadValues);
-  const avgSpread = spreadValues.reduce((a, b) => a + b, 0) / spreadValues.length;
+  const avgSpread = spreadValues.length > 0 ? spreadValues.reduce((a, b) => a + b, 0) / spreadValues.length : 0;
 
   const fmtVal = (v: number | null, color: string) =>
     v !== null ? <span className="legend-value" style={{ color }}>{v.toFixed(2)}%</span> : null;
@@ -294,43 +331,84 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
         </div>
         <div className="chart-stats">
           <span>{levels[activeRes].length.toLocaleString()} points</span>
-          <span>Spread: {minSpread.toFixed(2)}% – {maxSpread.toFixed(2)}% (avg {avgSpread.toFixed(2)}%)</span>
         </div>
       </div>
       <div className="chart-wrapper">
         <div className="chart-overlay">
-          <label className="overlay-item">
-            <input type="checkbox" checked={show1} onChange={() => setShow1(!show1)} />
-            <span className="legend-dot" style={{ backgroundColor: color1 }} />
-            <span>{market1.imData.name} (#{market1.marketId})</span>
-            {show1 && fmtVal(hover.v1, color1)}
-          </label>
-          <label className="overlay-item">
-            <input type="checkbox" checked={show2} onChange={() => setShow2(!show2)} />
-            <span className="legend-dot" style={{ backgroundColor: color2 }} />
-            <span>{market2.imData.name} (#{market2.marketId})</span>
-            {show2 && fmtVal(hover.v2, color2)}
-          </label>
-          <label className="overlay-item">
-            <input type="checkbox" checked={showSpread} onChange={() => setShowSpread(!showSpread)} />
-            <span className="legend-dot" style={{ backgroundColor: spreadColor }} />
-            <span>Spread</span>
-            {showSpread && fmtVal(hover.spread, spreadColor)}
-          </label>
+          {/* Boros overlay - implied APRs and spread */}
+          <div className="overlay-card">
+            <div className="overlay-card-header">
+              <input
+                type="checkbox"
+                checked={showBoros}
+                onChange={() => setShowBoros(!showBoros)}
+              />
+              <span className="overlay-card-title">Boros</span>
+            </div>
+            {showBoros && (
+              <>
+                <label className="overlay-item">
+                  <input type="checkbox" checked={show1} onChange={() => setShow1(!show1)} />
+                  <span className="legend-dot" style={{ backgroundColor: color1 }} />
+                  <span>{market1.imData.name}</span>
+                  {show1 && fmtVal(hover.v1, color1)}
+                </label>
+                <label className="overlay-item">
+                  <input type="checkbox" checked={show2} onChange={() => setShow2(!show2)} />
+                  <span className="legend-dot" style={{ backgroundColor: color2 }} />
+                  <span>{market2.imData.name}</span>
+                  {show2 && fmtVal(hover.v2, color2)}
+                </label>
+                <label className="overlay-item">
+                  <input type="checkbox" checked={showSpread} onChange={() => setShowSpread(!showSpread)} />
+                  <span className="legend-dot" style={{ backgroundColor: spreadColor }} />
+                  <span>Spread</span>
+                  {showSpread && fmtVal(hover.spread, spreadColor)}
+                </label>
+              </>
+            )}
+          </div>
+
+          {/* Leverage overlays */}
           {leverages.map((lev) => {
             const visible = !hiddenLeverages.includes(lev);
             const color = leverageColor(leverages, lev);
+            const collateral = 2 * size / lev;
+            const effDays = daysHeld ?? maxDays;
+            const daysRemaining = data.length > 0 ? Math.max(0, (minMaturity - data[0].timestamp) / 86400) : 0;
+            const heldDays = Math.min(daysRemaining, effDays);
+            // Use hovered spread when available, fallback to avgSpread
+            const spreadPct = hover.spread !== null ? hover.spread : avgSpread;
+            const spreadDecimal = spreadPct / 100;
+            const totalProfit = heldDays / 365 * spreadDecimal * size - fees;
+            const annualizedApy = heldDays > 0 ? (totalProfit / collateral) * (365 / heldDays) * 100 : 0;
             return (
-              <label key={lev} className="overlay-item">
-                <input
-                  type="checkbox"
-                  checked={visible}
-                  onChange={() => onToggleLeverage(lev)}
-                />
-                <span className="legend-dot" style={{ backgroundColor: color }} />
-                <span>{lev}x</span>
-                {visible && fmtVal(hover.lev[lev] ?? null, color)}
-              </label>
+              <div key={lev} className="overlay-card">
+                <div className="overlay-card-header">
+                  <input
+                    type="checkbox"
+                    checked={visible}
+                    onChange={() => onToggleLeverage(lev)}
+                  />
+                  <span className="legend-dot" style={{ backgroundColor: color }} />
+                  <span className="overlay-card-title">{lev}x</span>
+                  {visible && hover.lev[lev] != null && (
+                    <span className="overlay-card-hover" style={{ color }}>{hover.lev[lev]?.toFixed(2)}%</span>
+                  )}
+                </div>
+                <div className="overlay-card-row">
+                  <span className="overlay-card-label">Collateral</span>
+                  <span className="overlay-card-value">{collateral.toFixed(4)}</span>
+                </div>
+                <div className="overlay-card-row">
+                  <span className="overlay-card-label">Total Profit</span>
+                  <span className="overlay-card-value">{totalProfit.toFixed(4)}</span>
+                </div>
+                <div className="overlay-card-row">
+                  <span className="overlay-card-label">Annualized APY</span>
+                  <span className="overlay-card-value">{annualizedApy.toFixed(2)}%</span>
+                </div>
+              </div>
             );
           })}
         </div>
