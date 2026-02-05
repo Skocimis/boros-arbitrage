@@ -42,10 +42,11 @@ import * as path from 'path';
 
 // Asset prices for USD conversion
 const ASSET_PRICES: Record<string, number> = {
-  BTC: 100000,
-  ETH: 3000,
+  BTC: 70000,
+  ETH: 2200,
   BNB: 1000,
-  XAU: 5000
+  XAU: 5000,
+  HYPE: 30
 };
 
 interface BorosMarket {
