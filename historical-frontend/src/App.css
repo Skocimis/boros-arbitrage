@@ -95,7 +95,7 @@
   border: 1px solid #30363d;
   border-radius: 8px;
   padding: 1rem;
-  min-height: 500px;
+  min-height: 90vh;
 }
 
 .chart-topbar {
@@ -156,7 +156,7 @@
 
 /* Overlay cards */
 .overlay-card {
-  background-color: rgba(13, 17, 23, 0.85);
+  background-color: rgba(13, 17, 23, 0.45);
   border: 1px solid #30363d;
   border-radius: 6px;
   padding: 0.5rem;

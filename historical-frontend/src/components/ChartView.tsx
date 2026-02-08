@@ -80,11 +80,11 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
   feeModeRef.current = feeMode;
 
   const [showBoros, setShowBoros] = useState(true);
-  const [show1, setShow1] = useState(true);
-  const [show2, setShow2] = useState(true);
+  const [show1, setShow1] = useState(false);
+  const [show2, setShow2] = useState(false);
   const [showSpread, setShowSpread] = useState(true);
   const [hover, setHover] = useState<HoverValues>({ v1: null, v2: null, spread: null, lev: {}, timestamp: null });
-  const [activeRes, setActiveRes] = useState<Resolution>('5m');
+  const [activeRes, setActiveRes] = useState<Resolution>('3h');
 
   const color1 = platformColor(market1);
   const color2 = platformColor(market2);
@@ -122,7 +122,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
 
     const chart = createChart(container, {
       width: container.clientWidth,
-      height: 500,
+      height: Math.floor(window.innerHeight * 0.9),
       layout: {
         background: { color: '#0d1117' },
         textColor: '#c9d1d9',
@@ -144,7 +144,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     });
 
     chartRef.current = chart;
-    activeResRef.current = '5m';
+    activeResRef.current = '3h';
 
     const fmt = (v: number) => v.toFixed(2) + '%';
 
@@ -153,6 +153,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
       lineWidth: 1,
       title: market1.imData.name,
       priceFormat: { type: 'custom', formatter: fmt },
+      visible: false,
     });
 
     const s2 = chart.addSeries(LineSeries, {
@@ -160,6 +161,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
       lineWidth: 1,
       title: market2.imData.name,
       priceFormat: { type: 'custom', formatter: fmt },
+      visible: false,
     });
 
     const spread = chart.addSeries(LineSeries, {
@@ -171,7 +173,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
 
     seriesRef.current = { s1, s2, spread };
 
-    const d = levels['5m'];
+    const d = levels['3h'];
     s1.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.apr1 * 100 })));
     s2.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.apr2 * 100 })));
     spread.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.diff * 100 })));
@@ -200,14 +202,15 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
 
     chart.timeScale().fitContent();
 
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        chart.applyOptions({ width: entry.contentRect.width });
-      }
-    });
+    const onResize = () => {
+      chart.applyOptions({ width: container.clientWidth, height: Math.floor(window.innerHeight * 0.9) });
+    };
+    const observer = new ResizeObserver(onResize);
     observer.observe(container);
+    window.addEventListener('resize', onResize);
 
     return () => {
+      window.removeEventListener('resize', onResize);
       observer.disconnect();
       chart.remove();
       chartRef.current = null;

@@ -254,10 +254,10 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 3. If validation passes, chart candle data is fetched directly from `api.boros.finance` in 150,000-second chunks (same pagination as the indexer).
 4. `App.tsx` aligns candles by timestamp (inner join via `Map`), producing `AlignedDataPoint[]` with `|apr1 - apr2|` spread.
 5. `ChartView` renders a unified chart with:
-   - 3 core line series: market 1 APR, market 2 APR, absolute spread
+   - 3 core line series: market 1 APR, market 2 APR (hidden by default), absolute spread
    - Configurable leverage series showing annualized ROI at each point in time
    - Horizontal overlay cards: one "Boros" card (toggle APR lines), plus one card per leverage (Collateral, Total Profit, Annualized APY — values update on hover; Collateral and Total Profit display in USD when asset price is available)
-   - Resolution switching (5m → 30m → 3h via downsampling) preserves visible time range
+   - Resolution switching (5m / 30m / 3h via downsampling, default 3h) preserves visible time range
 
 ### Conventions and Gotchas
 
