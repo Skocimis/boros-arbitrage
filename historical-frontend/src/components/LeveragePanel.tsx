@@ -2,6 +2,8 @@ import { useState, useMemo } from 'react';
 import type { AlignedDataPoint } from '../types.ts';
 import { leverageColor } from '../leverageColors.ts';
 
+const BOROS_OI_FEE = 0.0001; // 0.01% Boros open interest fee
+
 interface LeveragePanelProps {
   leverages: number[];
   onLeveragesChange: (leverages: number[]) => void;
@@ -170,7 +172,7 @@ export default function LeveragePanel({
           {leverages.map((lev) => {
             const profitDaysRemaining = data.length > 0 ? Math.max(0, (minMaturity - data[0].timestamp) / 86400) : 0;
             const heldDays = Math.min(profitDaysRemaining, effectiveDays);
-            const profit = heldDays / 365 * avgDiff * size - fees;
+            const profit = heldDays / 365 * (avgDiff - BOROS_OI_FEE) * size - fees;
             const collateral = 2 * size / lev;
             const profitValue = heldDays > 0 ? (profit / collateral) * (365 / heldDays) * 100 : 0;
             return (

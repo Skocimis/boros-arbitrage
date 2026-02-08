@@ -269,7 +269,7 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 - **Chart view preservation** — adding/removing leverage series and switching resolution save and restore the visible time range via `getVisibleRange()` / `setVisibleRange()`. Only initial data load calls `fitContent()`.
 - **Platform colors** — Hyperliquid `#2dd4bf`, OKX `#d1d5db`, Spread `#2962ff`. Determined by `metadata.platformName`. Leverage series use a rotating palette from `leverageColors.ts`.
 - **Profit/ROI formulas** — Configurable inputs: Size, Days held, Fees. Formulas:
-  - `Profit = held_days / 365 * spread * size - fees`
+  - `Profit = held_days / 365 * (spread - 0.0001) * size - fees`  (0.01% Boros OI fee)
   - `Collateral = 2 * size / leverage`
   - `Annualized APY = (Profit / Collateral) * (365 / held_days) * 100`
   - `held_days = min(days_remaining_to_maturity, user_days_held_input)`

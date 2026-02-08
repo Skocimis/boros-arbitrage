@@ -3,6 +3,8 @@ import { createChart, LineSeries, type UTCTimestamp, type IChartApi, type ISerie
 import type { AlignedDataPoint, Market } from '../types.ts';
 import { leverageColor } from '../leverageColors.ts';
 
+const BOROS_OI_FEE = 0.0001; // 0.01% Boros open interest fee
+
 interface ChartViewProps {
   data: AlignedDataPoint[];
   market1: Market;
@@ -97,7 +99,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     const effDays = daysHeldRef.current ?? maxDays;
     const heldDays = Math.min(daysRemaining, effDays);
     if (heldDays <= 0) return 0;
-    const profit = heldDays / 365 * spread * sz - fee;
+    const profit = heldDays / 365 * (spread - BOROS_OI_FEE) * sz - fee;
     const collateral = 2 * sz / lev;
     return (profit / collateral) * (365 / heldDays) * 100;
   };
@@ -302,7 +304,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
         const daysRemaining = Math.max(0, (minMaturity - p.timestamp) / 86400);
         const heldDays = Math.min(daysRemaining, effDays);
         if (heldDays <= 0) return { time: p.timestamp as UTCTimestamp, value: 0 };
-        const profit = heldDays / 365 * p.diff * size - fees;
+        const profit = heldDays / 365 * (p.diff - BOROS_OI_FEE) * size - fees;
         const collateral = 2 * size / lev;
         return { time: p.timestamp as UTCTimestamp, value: (profit / collateral) * (365 / heldDays) * 100 };
       }));
@@ -380,7 +382,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
             // Use hovered spread when available, fallback to avgSpread
             const spreadPct = hover.spread !== null ? hover.spread : avgSpread;
             const spreadDecimal = spreadPct / 100;
-            const totalProfit = heldDays / 365 * spreadDecimal * size - fees;
+            const totalProfit = heldDays / 365 * (spreadDecimal - BOROS_OI_FEE) * size - fees;
             const annualizedApy = heldDays > 0 ? (totalProfit / collateral) * (365 / heldDays) * 100 : 0;
             return (
               <div key={lev} className="overlay-card">
