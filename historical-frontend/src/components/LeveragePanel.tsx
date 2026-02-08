@@ -26,6 +26,10 @@ interface LeveragePanelProps {
   market2: Market;
   minMaturity: number;
   maxStartTime: number;
+  assetPrice: number | null;
+  onAssetPriceChange: (price: number | null) => void;
+  onRefreshPrice: () => void;
+  priceLoading: boolean;
 }
 
 export default function LeveragePanel({
@@ -42,6 +46,10 @@ export default function LeveragePanel({
   market2,
   minMaturity,
   maxStartTime,
+  assetPrice,
+  onAssetPriceChange,
+  onRefreshPrice,
+  priceLoading,
 }: LeveragePanelProps) {
   const [levInput, setLevInput] = useState('');
   const [daysInput, setDaysInput] = useState('');
@@ -126,6 +134,8 @@ export default function LeveragePanel({
 
   const fmtRate = (rate: number) => (rate * 100).toFixed(4) + '%';
   const fmtAsset = (v: number) => v.toPrecision(4);
+  const fmtUsd = (v: number) => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const assetSymbol = market1.metadata.assetSymbol ?? market1.metadata.name;
 
   return (
     <div className="settings-panel">
@@ -203,6 +213,34 @@ export default function LeveragePanel({
         />
       </div>
       <div className="settings-block">
+        <div className="settings-block-title">{assetSymbol} Price</div>
+        <div className="price-input-row">
+          <input
+            type="number"
+            className="leverage-input"
+            placeholder="e.g. 3000"
+            value={assetPrice ?? ''}
+            onChange={(e) => {
+              const v = parseFloat(e.target.value);
+              onAssetPriceChange(!isNaN(v) && v > 0 ? v : null);
+            }}
+            min="0"
+            step="any"
+          />
+          <button
+            className="price-refresh-btn"
+            onClick={onRefreshPrice}
+            disabled={priceLoading}
+            title="Refresh price from API"
+          >
+            {'\u21BB'}
+          </button>
+        </div>
+        {assetPrice != null && (
+          <div className="notional-display">Notional: {fmtUsd(size * assetPrice)}</div>
+        )}
+      </div>
+      <div className="settings-block">
         <div className="settings-block-title">Fees</div>
         <input
           type="number"
@@ -231,7 +269,10 @@ export default function LeveragePanel({
           <div className="fee-breakdown">
             <div className="fee-breakdown-row">
               <span className="fee-breakdown-label">DEX fees</span>
-              <span className="fee-breakdown-value">{fmtAsset(feeMode.dexFee)}</span>
+              <span className="fee-breakdown-value">
+                {fmtAsset(feeMode.dexFee)}
+                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(feeMode.dexFee * assetPrice)})</span>}
+              </span>
             </div>
             {feeMode.type === 'taker-taker' ? (
               <>
@@ -262,7 +303,10 @@ export default function LeveragePanel({
             <div className="fee-breakdown-divider" />
             <div className="fee-breakdown-row">
               <span className="fee-breakdown-label">Boros swap</span>
-              <span className="fee-breakdown-value">{fmtAsset(borosSwapAtEarliest)}</span>
+              <span className="fee-breakdown-value">
+                {fmtAsset(borosSwapAtEarliest)}
+                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(borosSwapAtEarliest * assetPrice)})</span>}
+              </span>
             </div>
             <div className="fee-breakdown-formula">
               {size} &times; 2 &times; {(BOROS_SWAP_RATE * 100).toFixed(2)}% &times; (maturity - entry) / 365d
@@ -270,7 +314,10 @@ export default function LeveragePanel({
             <div className="fee-breakdown-divider" />
             <div className="fee-breakdown-row">
               <span className="fee-breakdown-label">Total (earliest)</span>
-              <span className="fee-breakdown-value">{fmtAsset(feeAtEarliest)}</span>
+              <span className="fee-breakdown-value">
+                {fmtAsset(feeAtEarliest)}
+                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(feeAtEarliest * assetPrice)})</span>}
+              </span>
             </div>
           </div>
         )}

@@ -604,6 +604,46 @@
   margin: 0.25rem 0;
 }
 
+/* Price input */
+.price-input-row {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.price-refresh-btn {
+  padding: 0.3rem 0.5rem;
+  font-size: 0.9rem;
+  background-color: #21262d;
+  border: 1px solid #30363d;
+  border-radius: 4px;
+  color: #8b949e;
+  cursor: pointer;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.price-refresh-btn:hover {
+  background-color: #30363d;
+  color: #c9d1d9;
+}
+
+.price-refresh-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.notional-display {
+  color: #58a6ff;
+  font-size: 0.75rem;
+  margin-top: 0.3rem;
+}
+
+.fee-usd {
+  color: #8b949e;
+  font-size: 0.65rem;
+}
+
 /* Spinner */
 .spinner-container {
   display: flex;

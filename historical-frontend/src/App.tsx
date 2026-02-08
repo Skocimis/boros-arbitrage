@@ -3,7 +3,7 @@ import './App.css';
 import type { Market, AlignedDataPoint } from './types.ts';
 import type { FeeMode } from './fees.ts';
 import { estimateMakerTaker } from './fees.ts';
-import { fetchAllMarkets, fetchChartData } from './api.ts';
+import { fetchAllMarkets, fetchChartData, fetchMarketDetail } from './api.ts';
 import MarketSelector from './components/MarketSelector.tsx';
 import ErrorDisplay from './components/ErrorDisplay.tsx';
 import LoadingSpinner from './components/LoadingSpinner.tsx';
@@ -26,6 +26,8 @@ function App() {
   const [daysHeld, setDaysHeld] = useState<number | null>(null);
   const [size, setSize] = useState<number>(1);
   const [feeMode, setFeeMode] = useState<FeeMode>({ type: 'manual', amount: 0 });
+  const [assetPrice, setAssetPrice] = useState<number | null>(null);
+  const [priceLoading, setPriceLoading] = useState(false);
 
   useEffect(() => {
     fetchAllMarkets()
@@ -47,9 +49,23 @@ function App() {
     );
   }, []);
 
+  const handleRefreshPrice = useCallback(async () => {
+    if (!market1) return;
+    setPriceLoading(true);
+    try {
+      const detail = await fetchMarketDetail(market1.marketId);
+      setAssetPrice(detail.data?.assetMarkPrice ?? null);
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setPriceLoading(false);
+    }
+  }, [market1]);
+
   const handleLoad = async () => {
     setError(null);
     setChartData(null);
+    setAssetPrice(null);
 
     const m1 = markets.find((m) => m.marketId === market1Id);
     const m2 = markets.find((m) => m.marketId === market2Id);
@@ -122,6 +138,14 @@ function App() {
       setChartData(aligned);
       setMarket1(m1);
       setMarket2(m2);
+
+      // Fetch live asset price
+      setPriceLoading(true);
+      fetchMarketDetail(m1.marketId)
+        .then((detail) => setAssetPrice(detail.data?.assetMarkPrice ?? null))
+        .catch(() => {})
+        .finally(() => setPriceLoading(false));
+
       const mt = estimateMakerTaker(size, m1.metadata.platformName, m2.metadata.platformName);
       setFeeMode({ type: 'maker-taker', dexFee: mt.dexFee });
     } catch (err) {
@@ -165,6 +189,7 @@ function App() {
             size={size}
             daysHeld={daysHeld}
             feeMode={feeMode}
+            assetPrice={assetPrice}
           />
           <div className="sidebar">
             <MarketData market1={market1} market2={market2} />
@@ -182,6 +207,10 @@ function App() {
               market2={market2}
               minMaturity={Math.min(market1.imData.maturity, market2.imData.maturity)}
               maxStartTime={Math.max(market1.startTime ?? 0, market2.startTime ?? 0)}
+              assetPrice={assetPrice}
+              onAssetPriceChange={setAssetPrice}
+              onRefreshPrice={handleRefreshPrice}
+              priceLoading={priceLoading}
             />
           </div>
         </div>

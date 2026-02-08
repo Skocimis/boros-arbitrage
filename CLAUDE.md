@@ -231,14 +231,14 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 
 | Path | Purpose |
 |------|---------|
-| `src/App.tsx` | Root component: market state, validation logic (asset match, startTime, date overlap) |
+| `src/App.tsx` | Root component: market state, validation logic (asset match, startTime, date overlap), asset price state + auto-fetch |
 | `src/api.ts` | `fetchAllMarkets()` via indexer proxy, `fetchChartData()` via Boros chart API, `fetchMarketDetail()` |
 | `src/types.ts` | `Market`, `Candle`, `AlignedDataPoint` interfaces |
 | `src/components/MarketSelector.tsx` | Two dropdowns (sorted by marketId desc) + Load button; shows start date per market |
 | `src/components/ErrorDisplay.tsx` | Conditional error banner |
 | `src/components/ChartView.tsx` | Unified chart with `lightweight-charts`: Boros overlay (market APRs + spread) and leverage overlays (profit metrics), resolution switching (5m/30m/3h) |
 | `src/components/MarketData.tsx` | Sidebar cards showing platform, state, maturity, leverage, APR, price, volume for each selected market |
-| `src/components/LeveragePanel.tsx` | Sidebar panel: leverage add/remove, Days held (slider + textbox), Size input, Fees input with estimate buttons, Annualized ROI display |
+| `src/components/LeveragePanel.tsx` | Sidebar panel: leverage add/remove, Days held (slider + textbox), Size input, Asset price input (auto-fetched, editable, refresh button) with notional display, Fees input with estimate buttons and dollar annotations, Annualized ROI display |
 | `src/components/LoadingSpinner.tsx` | Spinner with optional message |
 | `src/fees.ts` | Fee types (`FeeMode`), DEX fee rate constants, Boros swap fee computation, taker-taker/maker-taker estimation |
 | `src/leverageColors.ts` | Shared color palette and `leverageColor()` helper for leverage series |
@@ -256,7 +256,7 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 5. `ChartView` renders a unified chart with:
    - 3 core line series: market 1 APR, market 2 APR, absolute spread
    - Configurable leverage series showing annualized ROI at each point in time
-   - Horizontal overlay cards: one "Boros" card (toggle APR lines), plus one card per leverage (Collateral, Total Profit, Annualized APY — values update on hover)
+   - Horizontal overlay cards: one "Boros" card (toggle APR lines), plus one card per leverage (Collateral, Total Profit, Annualized APY — values update on hover; Collateral and Total Profit display in USD when asset price is available)
    - Resolution switching (5m → 30m → 3h via downsampling) preserves visible time range
 
 ### Conventions and Gotchas
@@ -277,6 +277,7 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
   - `Annualized APY = (Profit / Collateral) * (365 / held_days) * 100`
   - `held_days = min(days_remaining_to_maturity, user_days_held_input)`
   - `max_days = floor((min(maturity1, maturity2) - max(startTime1, startTime2)) / 86400)`
+- **Asset price & dollar display** — On market load, `App.tsx` fetches live `data.assetMarkPrice` via `fetchMarketDetail()` and stores it as `assetPrice` state. `LeveragePanel` shows an editable price input (with refresh button) and "Notional: $X" below it. Fee breakdown rows show inline `($X.XX)` dollar annotations. `ChartView` overlay cards display Collateral and Total Profit in USD when price is available, falling back to asset units (`.toFixed(4)`) when not. Price is `number | null` — all dollar displays are conditional on `assetPrice != null`.
 - **Overlay cards** — displayed horizontally (side by side). Boros card toggles APR series visibility. Leverage cards show profit metrics that update reactively on crosshair hover (using hovered spread, falling back to average spread when not hovering).
 - **Chart effects architecture** — six separate `useEffect` hooks: (1) core chart + 3 series (depends on data/markets), (2) leverage series lifecycle (depends on leverages), (3) resolution switching (depends on activeRes), (4) leverage visibility toggle (depends on hiddenLeverages), (5) Boros series visibility toggle (depends on showBoros/show1/show2/showSpread), (6) leverage data update (depends on size/daysHeld/feeMode). This separation prevents chart recreation on parameter changes.
 

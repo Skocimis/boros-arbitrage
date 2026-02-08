@@ -17,6 +17,7 @@ interface ChartViewProps {
   size: number;
   daysHeld: number | null;
   feeMode: FeeMode;
+  assetPrice: number | null;
 }
 
 interface HoverValues {
@@ -59,7 +60,7 @@ function platformColor(market: Market): string {
   return '#8b949e';
 }
 
-export default function ChartView({ data, market1, market2, leverages, hiddenLeverages, onToggleLeverage, size, daysHeld, feeMode }: ChartViewProps) {
+export default function ChartView({ data, market1, market2, leverages, hiddenLeverages, onToggleLeverage, size, daysHeld, feeMode, assetPrice }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<{
@@ -320,6 +321,8 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
   const spreadValues = data.map((d) => d.diff * 100);
   const avgSpread = spreadValues.length > 0 ? spreadValues.reduce((a, b) => a + b, 0) / spreadValues.length : 0;
 
+  const fmtUsd = (v: number) => '$' + v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
   const fmtVal = (v: number | null, color: string) =>
     v !== null ? <span className="legend-value" style={{ color }}>{v.toFixed(2)}%</span> : null;
 
@@ -409,11 +412,15 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
                 </div>
                 <div className="overlay-card-row">
                   <span className="overlay-card-label">Collateral</span>
-                  <span className="overlay-card-value">{collateral.toFixed(4)}</span>
+                  <span className="overlay-card-value">
+                    {assetPrice != null ? fmtUsd(collateral * assetPrice) : collateral.toFixed(4)}
+                  </span>
                 </div>
                 <div className="overlay-card-row">
                   <span className="overlay-card-label">Total Profit</span>
-                  <span className="overlay-card-value">{totalProfit.toFixed(4)}</span>
+                  <span className="overlay-card-value">
+                    {assetPrice != null ? fmtUsd(totalProfit * assetPrice) : totalProfit.toFixed(4)}
+                  </span>
                 </div>
                 <div className="overlay-card-row">
                   <span className="overlay-card-label">Annualized APY</span>
