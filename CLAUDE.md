@@ -238,8 +238,9 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 | `src/components/ErrorDisplay.tsx` | Conditional error banner |
 | `src/components/ChartView.tsx` | Unified chart with `lightweight-charts`: Boros overlay (market APRs + spread) and leverage overlays (profit metrics), resolution switching (5m/30m/3h) |
 | `src/components/MarketData.tsx` | Sidebar cards showing platform, state, maturity, leverage, APR, price, volume for each selected market |
-| `src/components/LeveragePanel.tsx` | Sidebar panel: leverage add/remove, Days held (slider + textbox), Size input, Fees input, Annualized ROI display |
+| `src/components/LeveragePanel.tsx` | Sidebar panel: leverage add/remove, Days held (slider + textbox), Size input, Fees input with estimate buttons, Annualized ROI display |
 | `src/components/LoadingSpinner.tsx` | Spinner with optional message |
+| `src/fees.ts` | Fee types (`FeeMode`), DEX fee rate constants, Boros swap fee computation, taker-taker/maker-taker estimation |
 | `src/leverageColors.ts` | Shared color palette and `leverageColor()` helper for leverage series |
 | `vite.config.ts` | React plugin + `/indexer` proxy to `localhost:3001` |
 
@@ -268,14 +269,16 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 - **`lightweight-charts` v5 API** — uses `chart.addSeries(LineSeries, options)` (not v4's `addLineSeries()`). Series removal via `chart.removeSeries(series)`.
 - **Chart view preservation** — adding/removing leverage series and switching resolution save and restore the visible time range via `getVisibleRange()` / `setVisibleRange()`. Only initial data load calls `fitContent()`.
 - **Platform colors** — Hyperliquid `#2dd4bf`, OKX `#d1d5db`, Spread `#2962ff`. Determined by `metadata.platformName`. Leverage series use a rotating palette from `leverageColors.ts`.
-- **Profit/ROI formulas** — Configurable inputs: Size, Days held, Fees. Formulas:
-  - `Profit = held_days / 365 * (spread - 0.0001) * size - fees`  (0.01% Boros OI fee)
+- **Fee estimation** (`fees.ts`) — `FeeMode` is `{ type: 'manual', amount } | { type: 'taker-taker', dexFee } | { type: 'maker-taker', dexFee }`. Maker-taker is auto-selected on market load. DEX fee = `2 * size * (rate1 + rate2)`. Boros swap fee = `size * 2 * 0.05% * (minMaturity - entryTimestamp) / (365 * 86400)` — varies per x-axis data point. DEX fee rates: Hyperliquid maker 0.01%/taker 0.035%, OKX/Gate/Binance maker 0.02%/taker 0.05%. `estimateMakerTaker()` tries both permutations and picks the lowest-cost combo.
+- **Profit/ROI formulas** — Configurable inputs: Size, Days held, Fees (manual or estimated). Formulas:
+  - `Fee = dexFee + size * 2 * 0.05% * (minMaturity - entryTimestamp) / (365 * 86400)` (estimated mode; manual mode uses flat amount)
+  - `Profit = held_days / 365 * (spread - 0.0001) * size - fee`  (0.01% Boros OI fee)
   - `Collateral = 2 * size / leverage`
   - `Annualized APY = (Profit / Collateral) * (365 / held_days) * 100`
   - `held_days = min(days_remaining_to_maturity, user_days_held_input)`
   - `max_days = floor((min(maturity1, maturity2) - max(startTime1, startTime2)) / 86400)`
 - **Overlay cards** — displayed horizontally (side by side). Boros card toggles APR series visibility. Leverage cards show profit metrics that update reactively on crosshair hover (using hovered spread, falling back to average spread when not hovering).
-- **Chart effects architecture** — six separate `useEffect` hooks: (1) core chart + 3 series (depends on data/markets), (2) leverage series lifecycle (depends on leverages), (3) resolution switching (depends on activeRes), (4) leverage visibility toggle (depends on hiddenLeverages), (5) Boros series visibility toggle (depends on showBoros/show1/show2/showSpread), (6) leverage data update (depends on size/daysHeld/fees). This separation prevents chart recreation on parameter changes.
+- **Chart effects architecture** — six separate `useEffect` hooks: (1) core chart + 3 series (depends on data/markets), (2) leverage series lifecycle (depends on leverages), (3) resolution switching (depends on activeRes), (4) leverage visibility toggle (depends on hiddenLeverages), (5) Boros series visibility toggle (depends on showBoros/show1/show2/showSpread), (6) leverage data update (depends on size/daysHeld/feeMode). This separation prevents chart recreation on parameter changes.
 
 ## Tech Stack
 

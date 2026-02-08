@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createChart, LineSeries, type UTCTimestamp, type IChartApi, type ISeriesApi } from 'lightweight-charts';
 import type { AlignedDataPoint, Market } from '../types.ts';
+import type { FeeMode } from '../fees.ts';
+import { computeFeeAtTimestamp } from '../fees.ts';
 import { leverageColor } from '../leverageColors.ts';
 
 const BOROS_OI_FEE = 0.0001; // 0.01% Boros open interest fee
@@ -14,7 +16,7 @@ interface ChartViewProps {
   onToggleLeverage: (lev: number) => void;
   size: number;
   daysHeld: number | null;
-  fees: number;
+  feeMode: FeeMode;
 }
 
 interface HoverValues {
@@ -22,6 +24,7 @@ interface HoverValues {
   v2: number | null;
   spread: number | null;
   lev: Record<number, number | null>;
+  timestamp: number | null;
 }
 
 type Resolution = '5m' | '30m' | '3h';
@@ -56,7 +59,7 @@ function platformColor(market: Market): string {
   return '#8b949e';
 }
 
-export default function ChartView({ data, market1, market2, leverages, hiddenLeverages, onToggleLeverage, size, daysHeld, fees }: ChartViewProps) {
+export default function ChartView({ data, market1, market2, leverages, hiddenLeverages, onToggleLeverage, size, daysHeld, feeMode }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<{
@@ -72,14 +75,14 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
   sizeRef.current = size;
   const daysHeldRef = useRef(daysHeld);
   daysHeldRef.current = daysHeld;
-  const feesRef = useRef(fees);
-  feesRef.current = fees;
+  const feeModeRef = useRef(feeMode);
+  feeModeRef.current = feeMode;
 
   const [showBoros, setShowBoros] = useState(true);
   const [show1, setShow1] = useState(true);
   const [show2, setShow2] = useState(true);
   const [showSpread, setShowSpread] = useState(true);
-  const [hover, setHover] = useState<HoverValues>({ v1: null, v2: null, spread: null, lev: {} });
+  const [hover, setHover] = useState<HoverValues>({ v1: null, v2: null, spread: null, lev: {}, timestamp: null });
   const [activeRes, setActiveRes] = useState<Resolution>('5m');
 
   const color1 = platformColor(market1);
@@ -94,11 +97,12 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     return Math.floor((minMaturity - maxStartTime) / 86400);
   }, [minMaturity, maxStartTime]);
 
-  const profitVal = (lev: number, ts: number, spread: number, sz: number, fee: number) => {
+  const profitVal = (lev: number, ts: number, spread: number, sz: number, fm: FeeMode) => {
     const daysRemaining = Math.max(0, (minMaturity - ts) / 86400);
     const effDays = daysHeldRef.current ?? maxDays;
     const heldDays = Math.min(daysRemaining, effDays);
     if (heldDays <= 0) return 0;
+    const fee = computeFeeAtTimestamp(fm, sz, minMaturity, ts);
     const profit = heldDays / 365 * (spread - BOROS_OI_FEE) * sz - fee;
     const collateral = 2 * sz / lev;
     return (profit / collateral) * (365 / heldDays) * 100;
@@ -173,7 +177,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
 
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || param.seriesData.size === 0) {
-        setHover({ v1: null, v2: null, spread: null, lev: {} });
+        setHover({ v1: null, v2: null, spread: null, lev: {}, timestamp: null });
         return;
       }
       const d1 = param.seriesData.get(s1);
@@ -189,6 +193,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
         v2: d2 && 'value' in d2 ? d2.value : null,
         spread: ds && 'value' in ds ? ds.value : null,
         lev: levVals,
+        timestamp: param.time as number,
       });
     });
 
@@ -240,7 +245,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
           priceFormat: { type: 'custom', formatter: fmt },
           visible: !hiddenLevRef.current.includes(lev),
         });
-        ls.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: profitVal(lev, p.timestamp, p.diff, sizeRef.current, feesRef.current) })));
+        ls.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: profitVal(lev, p.timestamp, p.diff, sizeRef.current, feeModeRef.current) })));
         currentMap.set(lev, ls);
       }
     }
@@ -269,7 +274,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     s2.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.apr2 * 100 })));
     spread.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: p.diff * 100 })));
     for (const [lev, ls] of levSeriesRef.current) {
-      ls.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: profitVal(lev, p.timestamp, p.diff, sizeRef.current, feesRef.current) })));
+      ls.setData(d.map((p) => ({ time: p.timestamp as UTCTimestamp, value: profitVal(lev, p.timestamp, p.diff, sizeRef.current, feeModeRef.current) })));
     }
 
     if (range) {
@@ -291,7 +296,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     seriesRef.current.spread?.applyOptions({ visible: showBoros && showSpread });
   }, [showBoros, show1, show2, showSpread]);
 
-  // Update leverage series when size, daysHeld, or fees change
+  // Update leverage series when size, daysHeld, or feeMode change
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
@@ -304,12 +309,13 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
         const daysRemaining = Math.max(0, (minMaturity - p.timestamp) / 86400);
         const heldDays = Math.min(daysRemaining, effDays);
         if (heldDays <= 0) return { time: p.timestamp as UTCTimestamp, value: 0 };
-        const profit = heldDays / 365 * (p.diff - BOROS_OI_FEE) * size - fees;
+        const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, p.timestamp);
+        const profit = heldDays / 365 * (p.diff - BOROS_OI_FEE) * size - fee;
         const collateral = 2 * size / lev;
         return { time: p.timestamp as UTCTimestamp, value: (profit / collateral) * (365 / heldDays) * 100 };
       }));
     }
-  }, [daysHeld, levels, maxDays, minMaturity, size, fees]);
+  }, [daysHeld, levels, maxDays, minMaturity, size, feeMode]);
 
   const spreadValues = data.map((d) => d.diff * 100);
   const avgSpread = spreadValues.length > 0 ? spreadValues.reduce((a, b) => a + b, 0) / spreadValues.length : 0;
@@ -377,12 +383,15 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
             const color = leverageColor(leverages, lev);
             const collateral = 2 * size / lev;
             const effDays = daysHeld ?? maxDays;
-            const daysRemaining = data.length > 0 ? Math.max(0, (minMaturity - data[0].timestamp) / 86400) : 0;
+            // Use hovered timestamp when available, fallback to earliest data point
+            const ts = hover.timestamp ?? (data.length > 0 ? data[0].timestamp : maxStartTime);
+            const daysRemaining = data.length > 0 ? Math.max(0, (minMaturity - ts) / 86400) : 0;
             const heldDays = Math.min(daysRemaining, effDays);
             // Use hovered spread when available, fallback to avgSpread
             const spreadPct = hover.spread !== null ? hover.spread : avgSpread;
             const spreadDecimal = spreadPct / 100;
-            const totalProfit = heldDays / 365 * (spreadDecimal - BOROS_OI_FEE) * size - fees;
+            const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, ts);
+            const totalProfit = heldDays / 365 * (spreadDecimal - BOROS_OI_FEE) * size - fee;
             const annualizedApy = heldDays > 0 ? (totalProfit / collateral) * (365 / heldDays) * 100 : 0;
             return (
               <div key={lev} className="overlay-card">

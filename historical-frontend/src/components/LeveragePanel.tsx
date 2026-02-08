@@ -1,6 +1,14 @@
-import { useState, useMemo } from 'react';
-import type { AlignedDataPoint } from '../types.ts';
+import { useState, useMemo, useEffect } from 'react';
+import type { AlignedDataPoint, Market } from '../types.ts';
+import type { FeeMode } from '../fees.ts';
 import { leverageColor } from '../leverageColors.ts';
+import {
+  computeFeeAtTimestamp,
+  computeBorosSwapFee,
+  estimateTakerTaker,
+  estimateMakerTaker,
+  BOROS_SWAP_RATE,
+} from '../fees.ts';
 
 const BOROS_OI_FEE = 0.0001; // 0.01% Boros open interest fee
 
@@ -12,8 +20,10 @@ interface LeveragePanelProps {
   onDaysHeldChange: (days: number | null) => void;
   size: number;
   onSizeChange: (size: number) => void;
-  fees: number;
-  onFeesChange: (fees: number) => void;
+  feeMode: FeeMode;
+  onFeeModeChange: (mode: FeeMode) => void;
+  market1: Market;
+  market2: Market;
   minMaturity: number;
   maxStartTime: number;
 }
@@ -26,8 +36,10 @@ export default function LeveragePanel({
   onDaysHeldChange,
   size,
   onSizeChange,
-  fees,
-  onFeesChange,
+  feeMode,
+  onFeeModeChange,
+  market1,
+  market2,
   minMaturity,
   maxStartTime,
 }: LeveragePanelProps) {
@@ -72,9 +84,48 @@ export default function LeveragePanel({
     setDaysInput('');
   };
 
+  // Auto-re-estimate dexFee when size changes
+  useEffect(() => {
+    if (feeMode.type === 'taker-taker') {
+      const result = estimateTakerTaker(size, market1.metadata.platformName, market2.metadata.platformName);
+      onFeeModeChange({ type: 'taker-taker', dexFee: result.dexFee });
+    } else if (feeMode.type === 'maker-taker') {
+      const result = estimateMakerTaker(size, market1.metadata.platformName, market2.metadata.platformName);
+      onFeeModeChange({ type: 'maker-taker', dexFee: result.dexFee });
+    }
+  }, [size]);
+
+  const platform1 = market1.metadata.platformName;
+  const platform2 = market2.metadata.platformName;
+
+  const takerTakerInfo = useMemo(() => estimateTakerTaker(size, platform1, platform2), [size, platform1, platform2]);
+  const makerTakerInfo = useMemo(() => estimateMakerTaker(size, platform1, platform2), [size, platform1, platform2]);
+
+  const handleTakerTaker = () => {
+    onFeeModeChange({ type: 'taker-taker', dexFee: takerTakerInfo.dexFee });
+  };
+
+  const handleMakerTaker = () => {
+    onFeeModeChange({ type: 'maker-taker', dexFee: makerTakerInfo.dexFee });
+  };
+
+  const handleManualInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = parseFloat(e.target.value);
+    if (!isNaN(v) && v >= 0) onFeeModeChange({ type: 'manual', amount: v });
+  };
+
   const avgDiff = data.length > 0
     ? data.reduce((s, d) => s + d.diff, 0) / data.length
     : 0;
+
+  const earliestTs = data.length > 0 ? data[0].timestamp : maxStartTime;
+
+  // Fee at earliest data point for ROI and breakdown display
+  const feeAtEarliest = computeFeeAtTimestamp(feeMode, size, minMaturity, earliestTs);
+  const borosSwapAtEarliest = computeBorosSwapFee(size, minMaturity, earliestTs);
+
+  const fmtRate = (rate: number) => (rate * 100).toFixed(4) + '%';
+  const fmtAsset = (v: number) => v.toPrecision(4);
 
   return (
     <div className="settings-panel">
@@ -157,14 +208,72 @@ export default function LeveragePanel({
           type="number"
           className="leverage-input"
           placeholder="e.g. 0.1"
-          value={fees}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value);
-            if (!isNaN(v) && v >= 0) onFeesChange(v);
-          }}
+          value={feeMode.type === 'manual' ? feeMode.amount : feeAtEarliest.toPrecision(4)}
+          onChange={handleManualInput}
           min="0"
           step="any"
         />
+        <div className="fee-estimate-buttons">
+          <button
+            className={`fee-estimate-btn${feeMode.type === 'taker-taker' ? ' fee-estimate-active' : ''}`}
+            onClick={handleTakerTaker}
+          >
+            Taker-Taker
+          </button>
+          <button
+            className={`fee-estimate-btn${feeMode.type === 'maker-taker' ? ' fee-estimate-active' : ''}`}
+            onClick={handleMakerTaker}
+          >
+            Maker-Taker
+          </button>
+        </div>
+        {feeMode.type !== 'manual' && (
+          <div className="fee-breakdown">
+            <div className="fee-breakdown-row">
+              <span className="fee-breakdown-label">DEX fees</span>
+              <span className="fee-breakdown-value">{fmtAsset(feeMode.dexFee)}</span>
+            </div>
+            {feeMode.type === 'taker-taker' ? (
+              <>
+                <div className="fee-breakdown-row">
+                  <span className="fee-breakdown-label">&nbsp;&nbsp;{platform1}</span>
+                  <span className="fee-breakdown-value">{fmtRate(takerTakerInfo.dex1Rate)} taker</span>
+                </div>
+                <div className="fee-breakdown-row">
+                  <span className="fee-breakdown-label">&nbsp;&nbsp;{platform2}</span>
+                  <span className="fee-breakdown-value">{fmtRate(takerTakerInfo.dex2Rate)} taker</span>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="fee-breakdown-row">
+                  <span className="fee-breakdown-label">&nbsp;&nbsp;{makerTakerInfo.makerPlatform}</span>
+                  <span className="fee-breakdown-value">{fmtRate(makerTakerInfo.makerRate)} maker</span>
+                </div>
+                <div className="fee-breakdown-row">
+                  <span className="fee-breakdown-label">&nbsp;&nbsp;{makerTakerInfo.takerPlatform}</span>
+                  <span className="fee-breakdown-value">{fmtRate(makerTakerInfo.takerRate)} taker</span>
+                </div>
+              </>
+            )}
+            <div className="fee-breakdown-formula">
+              2 &times; {size} &times; ({fmtRate(feeMode.type === 'taker-taker' ? takerTakerInfo.dex1Rate : makerTakerInfo.makerRate)} + {fmtRate(feeMode.type === 'taker-taker' ? takerTakerInfo.dex2Rate : makerTakerInfo.takerRate)})
+            </div>
+            <div className="fee-breakdown-divider" />
+            <div className="fee-breakdown-row">
+              <span className="fee-breakdown-label">Boros swap</span>
+              <span className="fee-breakdown-value">{fmtAsset(borosSwapAtEarliest)}</span>
+            </div>
+            <div className="fee-breakdown-formula">
+              {size} &times; 2 &times; {(BOROS_SWAP_RATE * 100).toFixed(2)}% &times; (maturity - entry) / 365d
+            </div>
+            <div className="fee-breakdown-divider" />
+            <div className="fee-breakdown-row">
+              <span className="fee-breakdown-label">Total (earliest)</span>
+              <span className="fee-breakdown-value">{fmtAsset(feeAtEarliest)}</span>
+            </div>
+          </div>
+        )}
       </div>
       <div className="settings-block">
         <div className="settings-block-title">Annualized ROI</div>
@@ -172,7 +281,8 @@ export default function LeveragePanel({
           {leverages.map((lev) => {
             const profitDaysRemaining = data.length > 0 ? Math.max(0, (minMaturity - data[0].timestamp) / 86400) : 0;
             const heldDays = Math.min(profitDaysRemaining, effectiveDays);
-            const profit = heldDays / 365 * (avgDiff - BOROS_OI_FEE) * size - fees;
+            const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, earliestTs);
+            const profit = heldDays / 365 * (avgDiff - BOROS_OI_FEE) * size - fee;
             const collateral = 2 * size / lev;
             const profitValue = heldDays > 0 ? (profit / collateral) * (365 / heldDays) * 100 : 0;
             return (

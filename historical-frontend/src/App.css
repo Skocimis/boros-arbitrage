@@ -527,6 +527,83 @@
   cursor: pointer;
 }
 
+/* Fee estimation */
+.fee-estimate-buttons {
+  display: flex;
+  gap: 0;
+  margin-top: 0.4rem;
+}
+
+.fee-estimate-btn {
+  flex: 1;
+  padding: 0.25rem 0.4rem;
+  font-size: 0.7rem;
+  background-color: #21262d;
+  border: 1px solid #30363d;
+  color: #8b949e;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.fee-estimate-btn:first-child {
+  border-radius: 4px 0 0 4px;
+}
+
+.fee-estimate-btn:last-child {
+  border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+
+.fee-estimate-btn:hover {
+  background-color: #30363d;
+  color: #c9d1d9;
+}
+
+.fee-estimate-active {
+  background-color: #388bfd26;
+  border-color: #58a6ff;
+  color: #58a6ff;
+}
+
+.fee-estimate-active + .fee-estimate-btn {
+  border-left: none;
+}
+
+.fee-breakdown {
+  margin-top: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid #30363d;
+}
+
+.fee-breakdown-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  padding: 0.1rem 0;
+}
+
+.fee-breakdown-label {
+  color: #8b949e;
+}
+
+.fee-breakdown-value {
+  color: #c9d1d9;
+  font-weight: 500;
+}
+
+.fee-breakdown-formula {
+  font-size: 0.65rem;
+  font-family: monospace;
+  color: #58a6ff;
+  padding: 0.15rem 0;
+  opacity: 0.8;
+}
+
+.fee-breakdown-divider {
+  border-top: 1px solid #21262d;
+  margin: 0.25rem 0;
+}
+
 /* Spinner */
 .spinner-container {
   display: flex;

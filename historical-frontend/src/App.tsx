@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import type { Market, AlignedDataPoint } from './types.ts';
+import type { FeeMode } from './fees.ts';
+import { estimateMakerTaker } from './fees.ts';
 import { fetchAllMarkets, fetchChartData } from './api.ts';
 import MarketSelector from './components/MarketSelector.tsx';
 import ErrorDisplay from './components/ErrorDisplay.tsx';
@@ -23,7 +25,7 @@ function App() {
   const [hiddenLeverages, setHiddenLeverages] = useState<number[]>([]);
   const [daysHeld, setDaysHeld] = useState<number | null>(null);
   const [size, setSize] = useState<number>(1);
-  const [fees, setFees] = useState<number>(0);
+  const [feeMode, setFeeMode] = useState<FeeMode>({ type: 'manual', amount: 0 });
 
   useEffect(() => {
     fetchAllMarkets()
@@ -120,6 +122,8 @@ function App() {
       setChartData(aligned);
       setMarket1(m1);
       setMarket2(m2);
+      const mt = estimateMakerTaker(size, m1.metadata.platformName, m2.metadata.platformName);
+      setFeeMode({ type: 'maker-taker', dexFee: mt.dexFee });
     } catch (err) {
       setError(`Failed to fetch chart data: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -160,7 +164,7 @@ function App() {
             onToggleLeverage={handleToggleLeverage}
             size={size}
             daysHeld={daysHeld}
-            fees={fees}
+            feeMode={feeMode}
           />
           <div className="sidebar">
             <MarketData market1={market1} market2={market2} />
@@ -172,8 +176,10 @@ function App() {
               onDaysHeldChange={setDaysHeld}
               size={size}
               onSizeChange={setSize}
-              fees={fees}
-              onFeesChange={setFees}
+              feeMode={feeMode}
+              onFeeModeChange={setFeeMode}
+              market1={market1}
+              market2={market2}
               minMaturity={Math.min(market1.imData.maturity, market2.imData.maturity)}
               maxStartTime={Math.max(market1.startTime ?? 0, market2.startTime ?? 0)}
             />
