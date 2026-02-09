@@ -24,10 +24,11 @@ function App() {
   const [leverages, setLeverages] = useState<number[]>([4]);
   const [hiddenLeverages, setHiddenLeverages] = useState<number[]>([]);
   const [daysHeld, setDaysHeld] = useState<number | null>(null);
-  const [size, setSize] = useState<number>(1);
+  const [size, setSize] = useState<number>(5);
   const [feeMode, setFeeMode] = useState<FeeMode>({ type: 'manual', amount: 0 });
   const [assetPrice, setAssetPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
+  const [hoverTimestamp, setHoverTimestamp] = useState<number | null>(null);
 
   useEffect(() => {
     fetchAllMarkets()
@@ -190,6 +191,7 @@ function App() {
             daysHeld={daysHeld}
             feeMode={feeMode}
             assetPrice={assetPrice}
+            onHoverTimestampChange={setHoverTimestamp}
           />
           <div className="sidebar">
             <MarketData market1={market1} market2={market2} />
@@ -211,6 +213,7 @@ function App() {
               onAssetPriceChange={setAssetPrice}
               onRefreshPrice={handleRefreshPrice}
               priceLoading={priceLoading}
+              hoverTimestamp={hoverTimestamp}
             />
           </div>
         </div>

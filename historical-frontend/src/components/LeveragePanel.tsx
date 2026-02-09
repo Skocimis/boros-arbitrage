@@ -30,6 +30,7 @@ interface LeveragePanelProps {
   onAssetPriceChange: (price: number | null) => void;
   onRefreshPrice: () => void;
   priceLoading: boolean;
+  hoverTimestamp: number | null;
 }
 
 export default function LeveragePanel({
@@ -50,6 +51,7 @@ export default function LeveragePanel({
   onAssetPriceChange,
   onRefreshPrice,
   priceLoading,
+  hoverTimestamp,
 }: LeveragePanelProps) {
   const [levInput, setLevInput] = useState('');
   const [daysInput, setDaysInput] = useState('');
@@ -127,10 +129,11 @@ export default function LeveragePanel({
     : 0;
 
   const earliestTs = data.length > 0 ? data[0].timestamp : maxStartTime;
+  const activeTs = hoverTimestamp ?? Math.floor(Date.now() / 1000);
 
-  // Fee at earliest data point for ROI and breakdown display
-  const feeAtEarliest = computeFeeAtTimestamp(feeMode, size, minMaturity, earliestTs);
-  const borosSwapAtEarliest = computeBorosSwapFee(size, minMaturity, earliestTs);
+  // Fee at active (hovered or earliest) data point for ROI and breakdown display
+  const feeAtActive = computeFeeAtTimestamp(feeMode, size, minMaturity, activeTs);
+  const borosSwapAtActive = computeBorosSwapFee(size, minMaturity, activeTs);
 
   const fmtRate = (rate: number) => (rate * 100).toFixed(4) + '%';
   const fmtAsset = (v: number) => v.toPrecision(4);
@@ -246,7 +249,7 @@ export default function LeveragePanel({
           type="number"
           className="leverage-input"
           placeholder="e.g. 0.1"
-          value={feeMode.type === 'manual' ? feeMode.amount : feeAtEarliest.toPrecision(4)}
+          value={feeMode.type === 'manual' ? feeMode.amount : feeAtActive.toPrecision(4)}
           onChange={handleManualInput}
           min="0"
           step="any"
@@ -304,19 +307,19 @@ export default function LeveragePanel({
             <div className="fee-breakdown-row">
               <span className="fee-breakdown-label">Boros swap</span>
               <span className="fee-breakdown-value">
-                {fmtAsset(borosSwapAtEarliest)}
-                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(borosSwapAtEarliest * assetPrice)})</span>}
+                {fmtAsset(borosSwapAtActive)}
+                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(borosSwapAtActive * assetPrice)})</span>}
               </span>
             </div>
             <div className="fee-breakdown-formula">
-              {size} &times; 2 &times; {(BOROS_SWAP_RATE * 100).toFixed(2)}% &times; (maturity - entry) / 365d
+              2 &times; {size} &times; {(BOROS_SWAP_RATE * 100).toFixed(2)}% &times; (maturity - entry) / 365d
             </div>
             <div className="fee-breakdown-divider" />
             <div className="fee-breakdown-row">
-              <span className="fee-breakdown-label">Total (earliest)</span>
+              <span className="fee-breakdown-label">Total</span>
               <span className="fee-breakdown-value">
-                {fmtAsset(feeAtEarliest)}
-                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(feeAtEarliest * assetPrice)})</span>}
+                {fmtAsset(feeAtActive)}
+                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(feeAtActive * assetPrice)})</span>}
               </span>
             </div>
           </div>
@@ -326,9 +329,9 @@ export default function LeveragePanel({
         <div className="settings-block-title">Annualized ROI</div>
         <div className="lev-apy-rows">
           {leverages.map((lev) => {
-            const profitDaysRemaining = data.length > 0 ? Math.max(0, (minMaturity - data[0].timestamp) / 86400) : 0;
+            const profitDaysRemaining = Math.max(0, (minMaturity - activeTs) / 86400);
             const heldDays = Math.min(profitDaysRemaining, effectiveDays);
-            const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, earliestTs);
+            const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, activeTs);
             const profit = heldDays / 365 * (avgDiff - BOROS_OI_FEE) * size - fee;
             const collateral = 2 * size / lev;
             const profitValue = heldDays > 0 ? (profit / collateral) * (365 / heldDays) * 100 : 0;

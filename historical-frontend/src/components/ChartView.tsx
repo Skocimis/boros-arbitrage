@@ -18,6 +18,7 @@ interface ChartViewProps {
   daysHeld: number | null;
   feeMode: FeeMode;
   assetPrice: number | null;
+  onHoverTimestampChange: (ts: number | null) => void;
 }
 
 interface HoverValues {
@@ -60,7 +61,7 @@ function platformColor(market: Market): string {
   return '#8b949e';
 }
 
-export default function ChartView({ data, market1, market2, leverages, hiddenLeverages, onToggleLeverage, size, daysHeld, feeMode, assetPrice }: ChartViewProps) {
+export default function ChartView({ data, market1, market2, leverages, hiddenLeverages, onToggleLeverage, size, daysHeld, feeMode, assetPrice, onHoverTimestampChange }: ChartViewProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<{
@@ -181,6 +182,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     chart.subscribeCrosshairMove((param) => {
       if (!param.time || param.seriesData.size === 0) {
         setHover({ v1: null, v2: null, spread: null, lev: {}, timestamp: null });
+        onHoverTimestampChange(null);
         return;
       }
       const d1 = param.seriesData.get(s1);
@@ -191,13 +193,15 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
         const dl = param.seriesData.get(ls);
         levVals[lev] = dl && 'value' in dl ? dl.value : null;
       }
+      const ts = param.time as number;
       setHover({
         v1: d1 && 'value' in d1 ? d1.value : null,
         v2: d2 && 'value' in d2 ? d2.value : null,
         spread: ds && 'value' in ds ? ds.value : null,
         lev: levVals,
-        timestamp: param.time as number,
+        timestamp: ts,
       });
+      onHoverTimestampChange(ts);
     });
 
     chart.timeScale().fitContent();
