@@ -273,7 +273,7 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 - **Profit/ROI formulas** — Configurable inputs: Size, Days held, Fees (manual or estimated). Formulas:
   - `Fee = dexFee + size * 2 * 0.05% * (minMaturity - entryTimestamp) / (365 * 86400)` (estimated mode; manual mode uses flat amount)
   - `Profit = held_days / 365 * (spread - 0.0001) * size - fee`  (0.01% Boros OI fee)
-  - `Collateral = 2 * size / leverage`
+  - `Collateral = 2 * size / leverage + 0.006 * size` (0.6% accounts for Boros initial margin requirement on both legs)
   - `Annualized APY = (Profit / Collateral) * (365 / held_days) * 100`
   - `held_days = min(days_remaining_to_maturity, user_days_held_input)`
   - `max_days = floor((min(maturity1, maturity2) - max(startTime1, startTime2)) / 86400)`

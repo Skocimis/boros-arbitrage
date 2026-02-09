@@ -333,7 +333,7 @@ export default function LeveragePanel({
             const heldDays = Math.min(profitDaysRemaining, effectiveDays);
             const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, activeTs);
             const profit = heldDays / 365 * (avgDiff - BOROS_OI_FEE) * size - fee;
-            const collateral = 2 * size / lev;
+            const collateral = 2 * size / lev + 0.006 * size;
             const profitValue = heldDays > 0 ? (profit / collateral) * (365 / heldDays) * 100 : 0;
             return (
               <div key={lev} className="lev-apy-row">

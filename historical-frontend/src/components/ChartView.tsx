@@ -106,7 +106,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     if (heldDays <= 0) return 0;
     const fee = computeFeeAtTimestamp(fm, sz, minMaturity, ts);
     const profit = heldDays / 365 * (spread - BOROS_OI_FEE) * sz - fee;
-    const collateral = 2 * sz / lev;
+    const collateral = 2 * sz / lev + 0.006 * sz;
     return (profit / collateral) * (365 / heldDays) * 100;
   };
 
@@ -319,7 +319,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
         if (heldDays <= 0) return { time: p.timestamp as UTCTimestamp, value: 0 };
         const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, p.timestamp);
         const profit = heldDays / 365 * (p.diff - BOROS_OI_FEE) * size - fee;
-        const collateral = 2 * size / lev;
+        const collateral = 2 * size / lev + 0.006 * size;
         return { time: p.timestamp as UTCTimestamp, value: (profit / collateral) * (365 / heldDays) * 100 };
       }));
     }
@@ -391,7 +391,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
           {leverages.map((lev) => {
             const visible = !hiddenLeverages.includes(lev);
             const color = leverageColor(leverages, lev);
-            const collateral = 2 * size / lev;
+            const collateral = 2 * size / lev + 0.006 * size;
             const effDays = daysHeld ?? maxDays;
             // Use hovered timestamp when available, fallback to earliest data point
             const ts = hover.timestamp ?? (data.length > 0 ? data[0].timestamp : maxStartTime);
