@@ -4,6 +4,7 @@ import type { AlignedDataPoint, Market } from '../types.ts';
 import type { FeeMode } from '../fees.ts';
 import { computeFeeAtTimestamp } from '../fees.ts';
 import { leverageColor } from '../leverageColors.ts';
+import { formatMarketName } from '../marketName.ts';
 
 const BOROS_OI_FEE = 0.0001; // 0.01% Boros open interest fee
 
@@ -152,7 +153,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     const s1 = chart.addSeries(LineSeries, {
       color: color1,
       lineWidth: 1,
-      title: market1.imData.name,
+      title: formatMarketName(market1),
       priceFormat: { type: 'custom', formatter: fmt },
       visible: false,
     });
@@ -160,7 +161,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     const s2 = chart.addSeries(LineSeries, {
       color: color2,
       lineWidth: 1,
-      title: market2.imData.name,
+      title: formatMarketName(market2),
       priceFormat: { type: 'custom', formatter: fmt },
       visible: false,
     });
@@ -368,13 +369,13 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
                 <label className="overlay-item">
                   <input type="checkbox" checked={show1} onChange={() => setShow1(!show1)} />
                   <span className="legend-dot" style={{ backgroundColor: color1 }} />
-                  <span>{market1.imData.name}</span>
+                  <span>{formatMarketName(market1)}</span>
                   {show1 && fmtVal(hover.v1, color1)}
                 </label>
                 <label className="overlay-item">
                   <input type="checkbox" checked={show2} onChange={() => setShow2(!show2)} />
                   <span className="legend-dot" style={{ backgroundColor: color2 }} />
-                  <span>{market2.imData.name}</span>
+                  <span>{formatMarketName(market2)}</span>
                   {show2 && fmtVal(hover.v2, color2)}
                 </label>
                 <label className="overlay-item">

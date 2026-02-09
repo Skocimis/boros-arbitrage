@@ -1,10 +1,6 @@
 import { useMemo } from 'react';
 import type { Market } from '../types.ts';
-
-function formatDate(ts: number | null): string {
-  if (ts === null) return 'no data';
-  return new Date(ts * 1000).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
+import { formatMarketName } from '../marketName.ts';
 
 interface MarketSelectorProps {
   markets: Market[];
@@ -57,7 +53,7 @@ export default function MarketSelector({
           </option>
           {sorted.map((m) => (
             <option key={m.marketId} value={m.marketId}>
-              {m.marketId} — {m.imData.name} (from {formatDate(m.startTime)})
+              {m.marketId} - {formatMarketName(m)}
             </option>
           ))}
         </select>
@@ -76,7 +72,7 @@ export default function MarketSelector({
           </option>
           {sorted.map((m) => (
             <option key={m.marketId} value={m.marketId}>
-              {m.marketId} — {m.imData.name} (from {formatDate(m.startTime)})
+              {m.marketId} - {formatMarketName(m)}
             </option>
           ))}
         </select>

@@ -45,7 +45,7 @@ async function runTracking(): Promise<void> {
     const result = await getApyData(STRATEGY_NAME, SIZE);
     appendToCsv(result.timestamp, result.realisticApy);
     console.log(
-      `[${now.toISOString()}] Realistic APY: ${(result.realisticApy * 100).toFixed(4)}% — saved to ${CSV_FILE}`
+      `[${now.toISOString()}] Realistic APY: ${(result.realisticApy * 100).toFixed(4)}% - saved to ${CSV_FILE}`
     );
   } catch (err) {
     console.error(

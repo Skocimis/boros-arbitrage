@@ -1,5 +1,6 @@
 export interface Market {
   marketId: number;
+  tokenId: number;
   startTime: number | null;
   imData: {
     name: string;

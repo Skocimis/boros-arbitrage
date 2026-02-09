@@ -1,4 +1,5 @@
 import type { Market } from '../types.ts';
+import { formatMarketName } from '../marketName.ts';
 
 interface MarketDataProps {
   market1: Market;
@@ -23,7 +24,7 @@ function MarketCard({ market, color }: { market: Market; color: string }) {
     <div className="market-card">
       <div className="market-card-header">
         <span className="market-card-dot" style={{ backgroundColor: color }} />
-        <span className="market-card-title">{market.imData.name}</span>
+        <span className="market-card-title">{formatMarketName(market)}</span>
         <span className="market-card-id">#{market.marketId}</span>
       </div>
       <div className="market-card-rows">
@@ -33,7 +34,7 @@ function MarketCard({ market, color }: { market: Market; color: string }) {
         </div>
         <div className="market-card-row">
           <span className="market-card-label">State</span>
-          <span className="market-card-value">{market.state ?? '—'}</span>
+          <span className="market-card-value">{market.state ?? '-'}</span>
         </div>
         <div className="market-card-row">
           <span className="market-card-label">Maturity</span>
