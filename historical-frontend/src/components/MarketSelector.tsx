@@ -48,12 +48,24 @@ export default function MarketSelector({
     return sorted.filter((m) => isCompatible(selectedMarket, m));
   }, [sorted, selectedMarket]);
 
-  const handleSelect = (
-    e: React.ChangeEvent<HTMLSelectElement>,
-    setter: (id: number | null) => void
-  ) => {
-    const val = e.target.value;
-    setter(val ? Number(val) : null);
+  const handleMarket1Change = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newId = e.target.value ? Number(e.target.value) : null;
+    onMarket1Change(newId);
+    if (newId !== null && market2Id !== null) {
+      const m1 = markets.find((m) => m.marketId === newId);
+      const m2 = markets.find((m) => m.marketId === market2Id);
+      if (m1 && m2 && !isCompatible(m1, m2)) onMarket2Change(null);
+    }
+  };
+
+  const handleMarket2Change = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newId = e.target.value ? Number(e.target.value) : null;
+    onMarket2Change(newId);
+    if (newId !== null && market1Id !== null) {
+      const m1 = markets.find((m) => m.marketId === market1Id);
+      const m2 = markets.find((m) => m.marketId === newId);
+      if (m1 && m2 && !isCompatible(m1, m2)) onMarket1Change(null);
+    }
   };
 
   const canLoad = market1Id !== null && market2Id !== null && !loading;
@@ -65,7 +77,7 @@ export default function MarketSelector({
         <select
           id="market1"
           value={market1Id ?? ''}
-          onChange={(e) => handleSelect(e, onMarket1Change)}
+          onChange={handleMarket1Change}
           disabled={marketsLoading}
         >
           <option value="">
@@ -84,7 +96,7 @@ export default function MarketSelector({
         <select
           id="market2"
           value={market2Id ?? ''}
-          onChange={(e) => handleSelect(e, onMarket2Change)}
+          onChange={handleMarket2Change}
           disabled={marketsLoading}
         >
           <option value="">
