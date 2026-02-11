@@ -128,7 +128,6 @@ export default function LeveragePanel({
     ? data.reduce((s, d) => s + d.diff, 0) / data.length
     : 0;
 
-  const earliestTs = data.length > 0 ? data[0].timestamp : maxStartTime;
   const activeTs = hoverTimestamp ?? Math.floor(Date.now() / 1000);
 
   // Fee at active (hovered or earliest) data point for ROI and breakdown display
