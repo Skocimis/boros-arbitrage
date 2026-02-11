@@ -137,13 +137,18 @@ function App() {
       }
 
       setChartData(aligned);
+
+      // Fetch live market details (volume, OI, price) — merge onto
+      // indexer objects to preserve startTime (indexer-only field)
       setMarket1(m1);
       setMarket2(m2);
-
-      // Fetch live asset price
       setPriceLoading(true);
-      fetchMarketDetail(m1.marketId)
-        .then((detail) => setAssetPrice(detail.data?.assetMarkPrice ?? null))
+      Promise.all([fetchMarketDetail(m1.marketId), fetchMarketDetail(m2.marketId)])
+        .then(([detail1, detail2]) => {
+          setMarket1({ ...m1, ...detail1, startTime: m1.startTime });
+          setMarket2({ ...m2, ...detail2, startTime: m2.startTime });
+          setAssetPrice(detail1.data?.assetMarkPrice ?? null);
+        })
         .catch(() => {})
         .finally(() => setPriceLoading(false));
 
@@ -158,11 +163,6 @@ function App() {
 
   return (
     <div className="app">
-      <div className="header">
-        <h1>Historical Arbitrage Analyzer</h1>
-        <p>Compare implied APR across Boros markets</p>
-      </div>
-
       <MarketSelector
         markets={markets}
         marketsLoading={marketsLoading}

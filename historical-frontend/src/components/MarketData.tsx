@@ -40,10 +40,6 @@ function MarketCard({ market, color }: { market: Market; color: string }) {
           <span className="market-card-label">Maturity</span>
           <span className="market-card-value">{formatDate(market.imData.maturity)}</span>
         </div>
-        <div className="market-card-row">
-          <span className="market-card-label">Max Leverage</span>
-          <span className="market-card-value">{market.metadata.maxLeverage}x</span>
-        </div>
         {d && (
           <>
             <div className="market-card-divider" />

@@ -231,14 +231,14 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 
 | Path | Purpose |
 |------|---------|
-| `src/App.tsx` | Root component: market state, validation logic (asset match, startTime, date overlap), asset price state + auto-fetch |
+| `src/App.tsx` | Root component: market state, validation logic (asset match, startTime, date overlap), live market detail fetch (merges onto indexer data, preserving `startTime`), asset price state |
 | `src/api.ts` | `fetchAllMarkets()` via indexer proxy, `fetchChartData()` via Boros chart API, `fetchMarketDetail()` |
 | `src/types.ts` | `Market`, `Candle`, `AlignedDataPoint` interfaces |
 | `src/components/MarketSelector.tsx` | Two dropdowns (sorted by marketId desc) + Load button; shows start date per market |
 | `src/components/ErrorDisplay.tsx` | Conditional error banner |
 | `src/components/ChartView.tsx` | Unified chart with `lightweight-charts`: Boros overlay (market APRs + spread) and leverage overlays (profit metrics), resolution switching (5m/30m/3h) |
-| `src/components/MarketData.tsx` | Sidebar cards showing platform, state, maturity, leverage, APR, price, volume for each selected market |
-| `src/components/LeveragePanel.tsx` | Sidebar panel: leverage add/remove, Days held (slider + textbox), Size input, Asset price input (auto-fetched, editable, refresh button) with notional display, Fees input with estimate buttons and dollar annotations, Annualized ROI display |
+| `src/components/MarketData.tsx` | Sidebar cards showing platform, state, maturity, APR, price, volume, OI for each selected market (live data) |
+| `src/components/LeveragePanel.tsx` | Sidebar panel in a single unified card (`settings-panel-card`): leverage add/remove, Days held (slider + textbox), Size + Price (2-col grid, auto-fetched, editable, refresh button) with notional display, Fees input with estimate buttons and dollar annotations, Annualized ROI display |
 | `src/components/LoadingSpinner.tsx` | Spinner with optional message |
 | `src/fees.ts` | Fee types (`FeeMode`), DEX fee rate constants, Boros swap fee computation, taker-taker/maker-taker estimation |
 | `src/leverageColors.ts` | Shared color palette and `leverageColor()` helper for leverage series |
@@ -252,7 +252,7 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
    - Validates both markets have non-null `startTime` (i.e., candle data exists).
    - Validates date ranges `[startTime, maturity]` overlap between the two markets.
 3. If validation passes, chart candle data is fetched directly from `api.boros.finance` in 150,000-second chunks (same pagination as the indexer).
-4. `App.tsx` aligns candles by timestamp (inner join via `Map`), producing `AlignedDataPoint[]` with `|apr1 - apr2|` spread.
+4. `App.tsx` aligns candles by timestamp (inner join via `Map`), producing `AlignedDataPoint[]` with `|apr1 - apr2|` spread. Live market details are fetched via `fetchMarketDetail()` for both markets and merged onto indexer objects (preserving `startTime`), so sidebar cards show live volume/OI/APR.
 5. `ChartView` renders a unified chart with:
    - 3 core line series: market 1 APR, market 2 APR (hidden by default), absolute spread
    - Configurable leverage series showing annualized ROI at each point in time
@@ -277,10 +277,11 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
   - `Annualized APY = (Profit / Collateral) * (365 / held_days) * 100`
   - `held_days = min(days_remaining_to_maturity, user_days_held_input)`
   - `max_days = floor((min(maturity1, maturity2) - max(startTime1, startTime2)) / 86400)`
-- **Asset price & dollar display** — On market load, `App.tsx` fetches live `data.assetMarkPrice` via `fetchMarketDetail()` and stores it as `assetPrice` state. `LeveragePanel` shows an editable price input (with refresh button) and "Notional: $X" below it. Fee breakdown rows show inline `($X.XX)` dollar annotations. `ChartView` overlay cards display Collateral and Total Profit in USD when price is available, falling back to asset units (`.toFixed(4)`) when not. Price is `number | null` — all dollar displays are conditional on `assetPrice != null`.
+- **Live market details** — On market load, `App.tsx` fetches live details for both markets via `fetchMarketDetail()` and merges them onto indexer objects (`{ ...indexer, ...live, startTime: indexer.startTime }`). This gives sidebar cards fresh `data` (volume, OI, APR, price) while preserving the indexer-only `startTime` field. Markets display immediately with indexer data; live data overwrites once fetched.
+- **Asset price & dollar display** — Asset price comes from the live detail fetch (`data.assetMarkPrice`) and is stored as `assetPrice` state. `LeveragePanel` shows an editable price input (with refresh button) and "Notional: $X" below it. Fee breakdown rows show inline `($X.XX)` dollar annotations. `ChartView` overlay cards display Collateral and Total Profit in USD when price is available, falling back to asset units (`.toFixed(4)`) when not. Price is `number | null` — all dollar displays are conditional on `assetPrice != null`.
 - **Overlay cards** — displayed horizontally (side by side). Boros card toggles APR series visibility. Leverage cards show profit metrics that update reactively on crosshair hover (using hovered spread, falling back to average spread when not hovering).
 - **Hover timestamp sharing** — `ChartView` emits the hovered timestamp to `App.tsx` via `onHoverTimestampChange`. `LeveragePanel` receives it and uses it for the fee breakdown (Boros swap, total, ROI). Fallback when not hovering is `Date.now()` (current time).
-- **Chart effects architecture** — six separate `useEffect` hooks: (1) core chart + 3 series (depends on data/markets), (2) leverage series lifecycle (depends on leverages), (3) resolution switching (depends on activeRes), (4) leverage visibility toggle (depends on hiddenLeverages), (5) Boros series visibility toggle (depends on showBoros/show1/show2/showSpread), (6) leverage data update (depends on size/daysHeld/feeMode). This separation prevents chart recreation on parameter changes.
+- **Chart effects architecture** — six separate `useEffect` hooks: (1) core chart + 3 series (depends on data/levels only — not markets, to avoid recreation on live detail fetch), (2) leverage series lifecycle (depends on leverages), (3) resolution switching (depends on activeRes), (4) leverage visibility toggle (depends on hiddenLeverages), (5) Boros series visibility toggle (depends on showBoros/show1/show2/showSpread), (6) leverage data update (depends on size/daysHeld/feeMode). This separation prevents chart recreation on parameter changes.
 
 ## Tech Stack
 

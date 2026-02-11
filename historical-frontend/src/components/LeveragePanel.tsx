@@ -142,207 +142,222 @@ export default function LeveragePanel({
 
   return (
     <div className="settings-panel">
-      <div className="settings-block">
-        <div className="settings-block-title">Leverage</div>
-        <div className="leverage-input-row">
-          <input
-            type="number"
-            className="leverage-input"
-            placeholder="e.g. 10"
-            value={levInput}
-            onChange={(e) => setLevInput(e.target.value)}
-            onKeyDown={handleLevKeyDown}
-            min="0"
-            step="any"
-          />
-          <button className="leverage-add-btn" onClick={handleAdd}>Add</button>
-        </div>
-        <div className="leverage-tags">
-          {leverages.map((lev) => (
-            <span key={lev} className="leverage-tag">
-              <span className="legend-dot" style={{ backgroundColor: leverageColor(leverages, lev) }} />
-              {lev}x
-              <button
-                className="leverage-tag-remove"
-                onClick={() => handleRemove(lev)}
-              >x</button>
-            </span>
-          ))}
-        </div>
-      </div>
-      {maxDays >= 1 && (
-        <div className="settings-block">
-          <div className="settings-block-title">Days held</div>
-          <div className="days-held-row">
+      <div className="settings-panel-card">
+        {/* Section: Leverage */}
+        <div className="settings-section">
+          <div className="settings-section-title">Leverage</div>
+          <div className="leverage-input-row">
             <input
               type="number"
-              className="days-held-input"
-              placeholder={effectiveDays === maxDays ? 'MAX' : String(effectiveDays)}
-              value={daysInput}
-              onChange={(e) => setDaysInput(e.target.value)}
-              onBlur={handleDaysInputCommit}
-              onKeyDown={(e) => { if (e.key === 'Enter') handleDaysInputCommit(); }}
+              className="leverage-input"
+              placeholder="e.g. 10"
+              value={levInput}
+              onChange={(e) => setLevInput(e.target.value)}
+              onKeyDown={handleLevKeyDown}
+              min="0"
+              step="any"
+            />
+            <button className="leverage-add-btn" onClick={handleAdd}>Add</button>
+          </div>
+          <div className="leverage-tags">
+            {leverages.map((lev) => (
+              <span key={lev} className="leverage-tag">
+                <span className="legend-dot" style={{ backgroundColor: leverageColor(leverages, lev) }} />
+                {lev}x
+                <button
+                  className="leverage-tag-remove"
+                  onClick={() => handleRemove(lev)}
+                >x</button>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Section: Days held */}
+        {maxDays >= 1 && (
+          <div className="settings-section">
+            <div className="settings-section-title">Days held</div>
+            <div className="days-held-row">
+              <input
+                type="number"
+                className="days-held-input"
+                placeholder={effectiveDays === maxDays ? 'MAX' : String(effectiveDays)}
+                value={daysInput}
+                onChange={(e) => setDaysInput(e.target.value)}
+                onBlur={handleDaysInputCommit}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleDaysInputCommit(); }}
+                min={1}
+                max={maxDays}
+              />
+              <span className="days-held-display">{effectiveDays === maxDays ? 'MAX' : effectiveDays}</span>
+            </div>
+            <input
+              type="range"
+              className="days-held-slider"
               min={1}
               max={maxDays}
+              value={effectiveDays}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                onDaysHeldChange(v === maxDays ? null : v);
+              }}
             />
-            <span className="days-held-display">{effectiveDays === maxDays ? 'MAX' : effectiveDays}</span>
           </div>
-          <input
-            type="range"
-            className="days-held-slider"
-            min={1}
-            max={maxDays}
-            value={effectiveDays}
-            onChange={(e) => {
-              const v = parseInt(e.target.value, 10);
-              onDaysHeldChange(v === maxDays ? null : v);
-            }}
-          />
+        )}
+
+        {/* Section: Size & Price */}
+        <div className="settings-section">
+          <div className="size-price-grid">
+            <div>
+              <div className="settings-section-title">Size</div>
+              <input
+                type="number"
+                className="leverage-input"
+                placeholder="e.g. 1"
+                value={size}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  if (!isNaN(v) && v > 0) onSizeChange(v);
+                }}
+                min="0"
+                step="any"
+              />
+            </div>
+            <div>
+              <div className="settings-section-title">
+                {assetSymbol} Price
+                <button
+                  className="price-refresh-btn"
+                  onClick={onRefreshPrice}
+                  disabled={priceLoading}
+                  title="Refresh price from API"
+                >
+                  {'\u21BB'}
+                </button>
+              </div>
+              <input
+                type="number"
+                className="leverage-input"
+                placeholder="e.g. 3000"
+                value={assetPrice ?? ''}
+                onChange={(e) => {
+                  const v = parseFloat(e.target.value);
+                  onAssetPriceChange(!isNaN(v) && v > 0 ? v : null);
+                }}
+                min="0"
+                step="any"
+              />
+            </div>
+          </div>
+              {assetPrice != null && (
+                <div className="notional-display">Notional: {fmtUsd(size * assetPrice)}</div>
+              )}
         </div>
-      )}
-      <div className="settings-block">
-        <div className="settings-block-title">Size</div>
-        <input
-          type="number"
-          className="leverage-input"
-          placeholder="e.g. 1"
-          value={size}
-          onChange={(e) => {
-            const v = parseFloat(e.target.value);
-            if (!isNaN(v) && v > 0) onSizeChange(v);
-          }}
-          min="0"
-          step="any"
-        />
-      </div>
-      <div className="settings-block">
-        <div className="settings-block-title">{assetSymbol} Price</div>
-        <div className="price-input-row">
+
+        {/* Section: Fees */}
+        <div className="settings-section">
+          <div className="settings-section-title">Fees</div>
           <input
             type="number"
             className="leverage-input"
-            placeholder="e.g. 3000"
-            value={assetPrice ?? ''}
-            onChange={(e) => {
-              const v = parseFloat(e.target.value);
-              onAssetPriceChange(!isNaN(v) && v > 0 ? v : null);
-            }}
+            placeholder="e.g. 0.1"
+            value={feeMode.type === 'manual' ? feeMode.amount : feeAtActive.toPrecision(4)}
+            onChange={handleManualInput}
             min="0"
             step="any"
           />
-          <button
-            className="price-refresh-btn"
-            onClick={onRefreshPrice}
-            disabled={priceLoading}
-            title="Refresh price from API"
-          >
-            {'\u21BB'}
-          </button>
-        </div>
-        {assetPrice != null && (
-          <div className="notional-display">Notional: {fmtUsd(size * assetPrice)}</div>
-        )}
-      </div>
-      <div className="settings-block">
-        <div className="settings-block-title">Fees</div>
-        <input
-          type="number"
-          className="leverage-input"
-          placeholder="e.g. 0.1"
-          value={feeMode.type === 'manual' ? feeMode.amount : feeAtActive.toPrecision(4)}
-          onChange={handleManualInput}
-          min="0"
-          step="any"
-        />
-        <div className="fee-estimate-buttons">
-          <button
-            className={`fee-estimate-btn${feeMode.type === 'taker-taker' ? ' fee-estimate-active' : ''}`}
-            onClick={handleTakerTaker}
-          >
-            Taker-Taker
-          </button>
-          <button
-            className={`fee-estimate-btn${feeMode.type === 'maker-taker' ? ' fee-estimate-active' : ''}`}
-            onClick={handleMakerTaker}
-          >
-            Maker-Taker
-          </button>
-        </div>
-        {feeMode.type !== 'manual' && (
-          <div className="fee-breakdown">
-            <div className="fee-breakdown-row">
-              <span className="fee-breakdown-label">DEX fees</span>
-              <span className="fee-breakdown-value">
-                {fmtAsset(feeMode.dexFee)}
-                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(feeMode.dexFee * assetPrice)})</span>}
-              </span>
-            </div>
-            {feeMode.type === 'taker-taker' ? (
-              <>
-                <div className="fee-breakdown-row">
-                  <span className="fee-breakdown-label">&nbsp;&nbsp;{platform1}</span>
-                  <span className="fee-breakdown-value">{fmtRate(takerTakerInfo.dex1Rate)} taker</span>
-                </div>
-                <div className="fee-breakdown-row">
-                  <span className="fee-breakdown-label">&nbsp;&nbsp;{platform2}</span>
-                  <span className="fee-breakdown-value">{fmtRate(takerTakerInfo.dex2Rate)} taker</span>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="fee-breakdown-row">
-                  <span className="fee-breakdown-label">&nbsp;&nbsp;{makerTakerInfo.makerPlatform}</span>
-                  <span className="fee-breakdown-value">{fmtRate(makerTakerInfo.makerRate)} maker</span>
-                </div>
-                <div className="fee-breakdown-row">
-                  <span className="fee-breakdown-label">&nbsp;&nbsp;{makerTakerInfo.takerPlatform}</span>
-                  <span className="fee-breakdown-value">{fmtRate(makerTakerInfo.takerRate)} taker</span>
-                </div>
-              </>
-            )}
-            <div className="fee-breakdown-formula">
-              2 &times; {size} &times; ({fmtRate(feeMode.type === 'taker-taker' ? takerTakerInfo.dex1Rate : makerTakerInfo.makerRate)} + {fmtRate(feeMode.type === 'taker-taker' ? takerTakerInfo.dex2Rate : makerTakerInfo.takerRate)})
-            </div>
-            <div className="fee-breakdown-divider" />
-            <div className="fee-breakdown-row">
-              <span className="fee-breakdown-label">Boros swap</span>
-              <span className="fee-breakdown-value">
-                {fmtAsset(borosSwapAtActive)}
-                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(borosSwapAtActive * assetPrice)})</span>}
-              </span>
-            </div>
-            <div className="fee-breakdown-formula">
-              2 &times; {size} &times; {(BOROS_SWAP_RATE * 100).toFixed(2)}% &times; (maturity - entry) / 365d
-            </div>
-            <div className="fee-breakdown-divider" />
-            <div className="fee-breakdown-row">
-              <span className="fee-breakdown-label">Total</span>
-              <span className="fee-breakdown-value">
-                {fmtAsset(feeAtActive)}
-                {assetPrice != null && <span className="fee-usd"> ({fmtUsd(feeAtActive * assetPrice)})</span>}
-              </span>
-            </div>
+          <div className="fee-estimate-buttons">
+            <button
+              className={`fee-estimate-btn${feeMode.type === 'taker-taker' ? ' fee-estimate-active' : ''}`}
+              onClick={handleTakerTaker}
+            >
+              Taker-Taker
+            </button>
+            <button
+              className={`fee-estimate-btn${feeMode.type === 'maker-taker' ? ' fee-estimate-active' : ''}`}
+              onClick={handleMakerTaker}
+            >
+              Maker-Taker
+            </button>
           </div>
-        )}
-      </div>
-      <div className="settings-block">
-        <div className="settings-block-title">Annualized ROI</div>
-        <div className="lev-apy-rows">
-          {leverages.map((lev) => {
-            const profitDaysRemaining = Math.max(0, (minMaturity - activeTs) / 86400);
-            const heldDays = Math.min(profitDaysRemaining, effectiveDays);
-            const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, activeTs);
-            const profit = heldDays / 365 * (avgDiff - BOROS_OI_FEE) * size - fee;
-            const collateral = 2 * size / lev + 0.006 * size;
-            const profitValue = heldDays > 0 ? (profit / collateral) * (365 / heldDays) * 100 : 0;
-            return (
-              <div key={lev} className="lev-apy-row">
-                <span className="legend-dot" style={{ backgroundColor: leverageColor(leverages, lev) }} />
-                <span className="lev-apy-label">{lev}x</span>
-                <span className="lev-apy-value">{profitValue.toFixed(2)}%</span>
+          {feeMode.type !== 'manual' && (
+            <div className="fee-breakdown">
+              <div className="fee-breakdown-row">
+                <span className="fee-breakdown-label">DEX fees</span>
+                <span className="fee-breakdown-value">
+                  {fmtAsset(feeMode.dexFee)}
+                  {assetPrice != null && <span className="fee-usd"> ({fmtUsd(feeMode.dexFee * assetPrice)})</span>}
+                </span>
               </div>
-            );
-          })}
+              {feeMode.type === 'taker-taker' ? (
+                <>
+                  <div className="fee-breakdown-row">
+                    <span className="fee-breakdown-label">&nbsp;&nbsp;{platform1}</span>
+                    <span className="fee-breakdown-value">{fmtRate(takerTakerInfo.dex1Rate)} taker</span>
+                  </div>
+                  <div className="fee-breakdown-row">
+                    <span className="fee-breakdown-label">&nbsp;&nbsp;{platform2}</span>
+                    <span className="fee-breakdown-value">{fmtRate(takerTakerInfo.dex2Rate)} taker</span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="fee-breakdown-row">
+                    <span className="fee-breakdown-label">&nbsp;&nbsp;{makerTakerInfo.makerPlatform}</span>
+                    <span className="fee-breakdown-value">{fmtRate(makerTakerInfo.makerRate)} maker</span>
+                  </div>
+                  <div className="fee-breakdown-row">
+                    <span className="fee-breakdown-label">&nbsp;&nbsp;{makerTakerInfo.takerPlatform}</span>
+                    <span className="fee-breakdown-value">{fmtRate(makerTakerInfo.takerRate)} taker</span>
+                  </div>
+                </>
+              )}
+              <div className="fee-breakdown-formula">
+                2 &times; {size} &times; ({fmtRate(feeMode.type === 'taker-taker' ? takerTakerInfo.dex1Rate : makerTakerInfo.makerRate)} + {fmtRate(feeMode.type === 'taker-taker' ? takerTakerInfo.dex2Rate : makerTakerInfo.takerRate)})
+              </div>
+              <div className="fee-breakdown-divider" />
+              <div className="fee-breakdown-row">
+                <span className="fee-breakdown-label">Boros swap</span>
+                <span className="fee-breakdown-value">
+                  {fmtAsset(borosSwapAtActive)}
+                  {assetPrice != null && <span className="fee-usd"> ({fmtUsd(borosSwapAtActive * assetPrice)})</span>}
+                </span>
+              </div>
+              <div className="fee-breakdown-formula">
+                2 &times; {size} &times; {(BOROS_SWAP_RATE * 100).toFixed(2)}% &times; (maturity - entry) / 365d
+              </div>
+              <div className="fee-breakdown-divider" />
+              <div className="fee-breakdown-row">
+                <span className="fee-breakdown-label">Total</span>
+                <span className="fee-breakdown-value">
+                  {fmtAsset(feeAtActive)}
+                  {assetPrice != null && <span className="fee-usd"> ({fmtUsd(feeAtActive * assetPrice)})</span>}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Section: Annualized ROI */}
+        <div className="settings-section">
+          <div className="settings-section-title">Annualized ROI</div>
+          <div className="lev-apy-rows">
+            {leverages.map((lev) => {
+              const profitDaysRemaining = Math.max(0, (minMaturity - activeTs) / 86400);
+              const heldDays = Math.min(profitDaysRemaining, effectiveDays);
+              const fee = computeFeeAtTimestamp(feeMode, size, minMaturity, activeTs);
+              const profit = heldDays / 365 * (avgDiff - BOROS_OI_FEE) * size - fee;
+              const collateral = 2 * size / lev + 0.006 * size;
+              const profitValue = heldDays > 0 ? (profit / collateral) * (365 / heldDays) * 100 : 0;
+              return (
+                <div key={lev} className="lev-apy-row">
+                  <span className="legend-dot" style={{ backgroundColor: leverageColor(leverages, lev) }} />
+                  <span className="lev-apy-label">{lev}x</span>
+                  <span className="lev-apy-value">{profitValue.toFixed(2)}%</span>
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

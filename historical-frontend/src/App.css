@@ -348,24 +348,54 @@
 
 /* Settings panel (leverage etc.) */
 .settings-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
   width: 220px;
 }
 
-.settings-block {
+.settings-panel-card {
   background-color: #161b22;
   border: 1px solid #30363d;
   border-radius: 8px;
   padding: 0.75rem;
 }
 
-.settings-block-title {
-  font-size: 0.8rem;
+.settings-section {
+  padding-top: 0.6rem;
+  margin-top: 0.6rem;
+  border-top: 1px solid #30363d;
+}
+
+.settings-section:first-child {
+  padding-top: 0;
+  margin-top: 0;
+  border-top: none;
+}
+
+.settings-section-title {
+  font-size: 0.75rem;
   font-weight: 600;
-  color: #c9d1d9;
+  color: #8b949e;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
   margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.size-price-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.6rem;
+}
+
+.size-price-grid > div {
+  min-width: 0;
+}
+
+.size-price-grid .leverage-input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .leverage-input-row {
@@ -612,8 +642,8 @@
 }
 
 .price-refresh-btn {
-  padding: 0.3rem 0.5rem;
-  font-size: 0.9rem;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.75rem;
   background-color: #21262d;
   border: 1px solid #30363d;
   border-radius: 4px;
@@ -621,6 +651,7 @@
   cursor: pointer;
   line-height: 1;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .price-refresh-btn:hover {
@@ -637,6 +668,7 @@
   color: #58a6ff;
   font-size: 0.75rem;
   margin-top: 0.3rem;
+  text-align: center;
 }
 
 .fee-usd {

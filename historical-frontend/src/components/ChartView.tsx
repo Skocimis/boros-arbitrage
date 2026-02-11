@@ -222,7 +222,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
       seriesRef.current = { s1: null, s2: null, spread: null };
       levSeriesRef.current = new Map();
     };
-  }, [data, levels, market1, market2]);
+  }, [data, levels]);
 
   // Leverage series lifecycle — add/remove without resetting view
   useEffect(() => {
