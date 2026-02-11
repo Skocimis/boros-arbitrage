@@ -28,6 +28,26 @@ export default function MarketSelector({
     [markets]
   );
 
+  const isCompatible = (selected: Market, candidate: Market): boolean => {
+    if (candidate.marketId === selected.marketId) return false;
+    if (candidate.startTime === null || selected.startTime === null) return false;
+    const asset1 = selected.metadata.assetSymbol ?? selected.metadata.name;
+    const asset2 = candidate.metadata.assetSymbol ?? candidate.metadata.name;
+    if (asset1 !== asset2) return false;
+    if (selected.imData.maturity < candidate.startTime || candidate.imData.maturity < selected.startTime) return false;
+    return true;
+  };
+
+  const exactlyOneSelected = (market1Id !== null) !== (market2Id !== null);
+  const selectedMarket = exactlyOneSelected
+    ? markets.find((m) => m.marketId === (market1Id ?? market2Id))
+    : null;
+
+  const filteredForOther = useMemo(() => {
+    if (!selectedMarket) return sorted;
+    return sorted.filter((m) => isCompatible(selectedMarket, m));
+  }, [sorted, selectedMarket]);
+
   const handleSelect = (
     e: React.ChangeEvent<HTMLSelectElement>,
     setter: (id: number | null) => void
@@ -51,7 +71,7 @@ export default function MarketSelector({
           <option value="">
             {marketsLoading ? 'Loading markets...' : 'Select a market'}
           </option>
-          {sorted.map((m) => (
+          {(market2Id !== null && market1Id === null ? filteredForOther : sorted).map((m) => (
             <option key={m.marketId} value={m.marketId}>
               {m.marketId} - {formatMarketName(m)}
             </option>
@@ -70,7 +90,7 @@ export default function MarketSelector({
           <option value="">
             {marketsLoading ? 'Loading markets...' : 'Select a market'}
           </option>
-          {sorted.map((m) => (
+          {(market1Id !== null && market2Id === null ? filteredForOther : sorted).map((m) => (
             <option key={m.marketId} value={m.marketId}>
               {m.marketId} - {formatMarketName(m)}
             </option>
