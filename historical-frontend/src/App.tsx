@@ -68,6 +68,11 @@ function App() {
     setChartData(null);
     setAssetPrice(null);
 
+    if (market1Id === market2Id) {
+      setError('Cannot select the same market for both sides. Choose two different markets.');
+      return;
+    }
+
     const m1 = markets.find((m) => m.marketId === market1Id);
     const m2 = markets.find((m) => m.marketId === market2Id);
     if (!m1 || !m2) return;
