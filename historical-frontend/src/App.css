@@ -734,6 +734,24 @@
   .overlay-card {
     min-width: 100px;
     max-width: 150px;
+    padding: 0.35rem;
+  }
+
+  .overlay-card-title {
+    font-size: 0.7rem;
+  }
+
+  .overlay-card-hover {
+    font-size: 0.65rem;
+  }
+
+  .overlay-card-row {
+    font-size: 0.6rem;
+  }
+
+  .overlay-item {
+    font-size: 0.65rem;
+    gap: 0.25rem;
   }
 
   .overlay-item span:not(.legend-dot):not(.legend-value) {
