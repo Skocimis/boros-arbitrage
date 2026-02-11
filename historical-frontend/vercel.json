@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/indexer/:path*", "destination": "http://159.89.24.172/:path*" },
+    { "source": "/boros-api/:path*", "destination": "https://api.boros.finance/core/:path*" }
+  ]
+}

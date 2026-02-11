@@ -7,8 +7,13 @@ export default defineConfig({
   server: {
     proxy: {
       '/indexer': {
-        target: 'http://localhost:3001',
+        target: 'http://159.89.24.172',
         rewrite: (path) => path.replace(/^\/indexer/, ''),
+      },
+      '/boros-api': {
+        target: 'https://api.boros.finance',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/boros-api/, '/core'),
       },
     },
   },

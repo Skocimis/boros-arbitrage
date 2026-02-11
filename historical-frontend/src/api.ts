@@ -1,6 +1,6 @@
 import type { Market, Candle } from './types.ts';
 
-const BOROS_URL = 'https://api.boros.finance/core';
+const BOROS_URL = '/boros-api';
 
 interface ChartResponse {
   results: Candle[];
