@@ -122,9 +122,10 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     const container = containerRef.current;
     if (!container || data.length === 0) return;
 
+    const isMobile = window.innerWidth <= 768;
     const chart = createChart(container, {
       width: container.clientWidth,
-      height: Math.floor(window.innerHeight * 0.9),
+      height: Math.floor(window.innerHeight * (isMobile ? 0.5 : 0.9)),
       layout: {
         background: { color: '#0d1117' },
         textColor: '#c9d1d9',
@@ -209,7 +210,8 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
     chart.timeScale().fitContent();
 
     const onResize = () => {
-      chart.applyOptions({ width: container.clientWidth, height: Math.floor(window.innerHeight * 0.9) });
+      const mobile = window.innerWidth <= 768;
+      chart.applyOptions({ width: container.clientWidth, height: Math.floor(window.innerHeight * (mobile ? 0.5 : 0.9)) });
     };
     const observer = new ResizeObserver(onResize);
     observer.observe(container);

@@ -708,6 +708,11 @@
 
 /* Responsive */
 @media (max-width: 768px) {
+  .app {
+    max-width: 100%;
+    padding: 0.5rem;
+  }
+
   .selector-section {
     flex-direction: column;
     align-items: stretch;
@@ -721,8 +726,27 @@
     width: 100%;
   }
 
+  .chart-section {
+    padding: 0.5rem;
+    min-height: auto;
+  }
+
+  .overlay-card {
+    min-width: 100px;
+    max-width: 150px;
+  }
+
+  .overlay-item span:not(.legend-dot):not(.legend-value) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 80px;
+    display: inline-block;
+  }
+
   .chart-layout {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .sidebar {
