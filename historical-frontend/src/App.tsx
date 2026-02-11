@@ -29,6 +29,8 @@ function App() {
   const [assetPrice, setAssetPrice] = useState<number | null>(null);
   const [priceLoading, setPriceLoading] = useState(false);
   const [hoverTimestamp, setHoverTimestamp] = useState<number | null>(null);
+  const [loadedMarket1Id, setLoadedMarket1Id] = useState<number | null>(null);
+  const [loadedMarket2Id, setLoadedMarket2Id] = useState<number | null>(null);
 
   useEffect(() => {
     fetchAllMarkets()
@@ -67,6 +69,8 @@ function App() {
     setError(null);
     setChartData(null);
     setAssetPrice(null);
+    setLoadedMarket1Id(null);
+    setLoadedMarket2Id(null);
 
     if (market1Id === market2Id) {
       setError('Cannot select the same market for both sides. Choose two different markets.');
@@ -142,6 +146,8 @@ function App() {
       }
 
       setChartData(aligned);
+      setLoadedMarket1Id(m1.marketId);
+      setLoadedMarket2Id(m2.marketId);
 
       // Fetch live market details (volume, OI, price) — merge onto
       // indexer objects to preserve startTime (indexer-only field)
@@ -177,6 +183,8 @@ function App() {
         onMarket2Change={setMarket2Id}
         onLoad={handleLoad}
         loading={loading}
+        loadedMarket1Id={loadedMarket1Id}
+        loadedMarket2Id={loadedMarket2Id}
       />
 
       <ErrorDisplay message={error} />

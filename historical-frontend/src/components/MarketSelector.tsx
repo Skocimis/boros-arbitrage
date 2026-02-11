@@ -11,6 +11,8 @@ interface MarketSelectorProps {
   onMarket2Change: (id: number | null) => void;
   onLoad: () => void;
   loading: boolean;
+  loadedMarket1Id: number | null;
+  loadedMarket2Id: number | null;
 }
 
 export default function MarketSelector({
@@ -22,6 +24,8 @@ export default function MarketSelector({
   onMarket2Change,
   onLoad,
   loading,
+  loadedMarket1Id,
+  loadedMarket2Id,
 }: MarketSelectorProps) {
   const sorted = useMemo(
     () => [...markets].sort((a, b) => b.marketId - a.marketId),
@@ -68,7 +72,12 @@ export default function MarketSelector({
     }
   };
 
-  const canLoad = market1Id !== null && market2Id !== null && !loading;
+  const alreadyLoaded =
+    market1Id !== null &&
+    market2Id !== null &&
+    market1Id === loadedMarket1Id &&
+    market2Id === loadedMarket2Id;
+  const canLoad = market1Id !== null && market2Id !== null && !loading && !alreadyLoaded;
 
   return (
     <div className="selector-section">
@@ -115,7 +124,7 @@ export default function MarketSelector({
         onClick={onLoad}
         disabled={!canLoad}
       >
-        {loading ? 'Loading...' : 'Load'}
+        {loading ? 'Loading...' : alreadyLoaded ? 'Select different markets' : 'Load'}
       </button>
     </div>
   );
