@@ -152,8 +152,8 @@ npm run typecheck      # Type-check without emitting
 
 ### Prerequisites
 
-- MongoDB running locally on `mongodb://localhost:27017` (override with `MONGO_URI` env var)
-- Port 3001 available (override with `PORT` env var)
+- MongoDB running locally on `mongodb://127.0.0.1:27017` (override with `MONGO_URI` env var)
+- Port 80 available (override with `PORT` env var)
 
 ### REST API
 
@@ -188,7 +188,7 @@ npm run typecheck      # Type-check without emitting
 2. Discover markets via paginated `GET /v1/markets?isWhitelisted=true`, compute maxId
 3. Fetch details for each market 1..maxId (100ms delay, 404s skipped), upsert to DB
 4. Backfill candles for each market: initial run scans from 1 year ago in 150,000s chunks (50ms between chunks, 200ms between markets), skipping empty chunks until data is found
-5. Start Express server on port 3001
+5. Start Express server on port 80
 6. Start hourly scheduler (re-indexes markets + incremental candle updates)
 
 ### Conventions and Gotchas
@@ -216,17 +216,17 @@ npm run lint           # ESLint
 
 ### Prerequisites
 
-- **boros-indexer running on port 3001** — the frontend fetches market data via a Vite dev-server proxy (`/indexer` -> `localhost:3001`). Without the indexer, market dropdowns will fail to load.
+- **boros-indexer running** — the frontend fetches market data via proxy (`/indexer` -> indexer server). In dev, Vite proxies to `http://159.89.24.172`; in production, Vercel rewrites handle it. Without the indexer, market dropdowns will fail to load.
 
 ### Architecture
 
 Market data flows from the boros-indexer (MongoDB) through the Vite proxy into the React app. Chart candle data is fetched directly from the Boros API (`api.boros.finance`).
 
 ```
-boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros chart API
-       │                              │
-   /get-markets               /indexer/get-markets
-                              (rewritten to /)
+boros-indexer:80    <──proxy──  Vite dev server:5173  ──>  Boros chart API
+(159.89.24.172)          │
+   /get-markets    /indexer/get-markets
+                   (rewritten to /)
 ```
 
 | Path | Purpose |
@@ -242,7 +242,7 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 | `src/components/LoadingSpinner.tsx` | Spinner with optional message |
 | `src/fees.ts` | Fee types (`FeeMode`), DEX fee rate constants, Boros swap fee computation, taker-taker/maker-taker estimation |
 | `src/leverageColors.ts` | Shared color palette and `leverageColor()` helper for leverage series |
-| `vite.config.ts` | React plugin + `/indexer` proxy to `localhost:3001` |
+| `vite.config.ts` | React plugin + `/indexer` proxy to `159.89.24.172` |
 
 ### Data Flow
 
@@ -261,7 +261,7 @@ boros-indexer:3001  <──proxy──  Vite dev server:5173  ──>  Boros cha
 
 ### Conventions and Gotchas
 
-- **Vite proxy for CORS** — the indexer has no CORS headers. The `/indexer` prefix is stripped by the proxy rewrite rule, so `/indexer/get-markets` becomes `GET /get-markets` on port 3001. This only works in dev mode; a production deployment needs its own proxy or CORS configuration.
+- **Proxy for CORS** — the indexer has no CORS headers. The `/indexer` prefix is stripped, so `/indexer/get-markets` becomes `GET /get-markets` on the indexer. In dev, Vite's proxy handles this; in production, `vercel.json` rewrites handle it. Both point to `http://159.89.24.172`.
 - **No axios** — the frontend uses native `fetch` throughout. No HTTP client dependency.
 - **Separate `package.json`** — the frontend has its own dependencies (React 19, Vite 7). Run `npm install` inside `historical-frontend/` before use.
 - **`startTime` field** — returned by the indexer as a Unix timestamp (seconds) or `null` if no candles exist. Displayed in dropdowns as a formatted date.
