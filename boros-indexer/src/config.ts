@@ -1,6 +1,6 @@
 export const BOROS_API_BASE = 'https://api.boros.finance/core';
 
-export const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://localhost:27017';
+export const MONGO_URI = process.env.MONGO_URI ?? 'mongodb://127.0.0.1:27017';
 export const DB_NAME = 'boros_indexer';
 export const PORT = parseInt(process.env.PORT ?? '3001', 10);
 
