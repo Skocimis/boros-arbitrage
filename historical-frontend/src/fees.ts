@@ -13,6 +13,7 @@ const DEX_FEE_RATES: Record<string, DexRates> = {
   okx: { maker: 0.0002, taker: 0.0005 },
   gate: { maker: 0.0002, taker: 0.0005 },
   binance: { maker: 0.0002, taker: 0.0005 },
+  lighter: { maker: 0, taker: 0 },
 };
 
 export const BOROS_SWAP_RATE = 0.0005;
