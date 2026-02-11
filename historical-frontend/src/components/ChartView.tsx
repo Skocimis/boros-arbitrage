@@ -142,6 +142,7 @@ export default function ChartView({ data, market1, market2, leverages, hiddenLev
       timeScale: {
         borderColor: '#30363d',
         timeVisible: true,
+        minBarSpacing: 0.001,
       },
     });
 
