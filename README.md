@@ -141,6 +141,18 @@ Boros/
 - [Cross-Exchange Funding Rate Arbitrage Strategy](https://medium.com/boros-fi/cross-exchange-funding-rate-arbitrage-a-fixed-yield-strategy-through-boros-c9e828b61215)
 - [Boros App](https://boros.pendle.finance/)
 
+## Disclaimer
+
+**Not financial advice.** This project is for educational and research purposes only. Nothing in this repository is a recommendation to buy, sell, or trade any asset.
+
+The scripts place real orders with real funds on live exchanges. Use them entirely at your own risk:
+
+- Positions can be liquidated, and legs can fail independently. `openPosition.ts` has no rollback, so a partial fill leaves you with an unhedged position.
+- Funding rates, implied APRs, liquidity, and fees change constantly. Past spreads do not guarantee future returns.
+- The code is provided as-is, with no warranty, and may contain bugs.
+
+Never commit your `.env` file or share your private keys or API secrets.
+
 ## License
 
 ISC
